@@ -5,7 +5,7 @@ TODO:
 
 1. plotting
 1. read config file for configuring packet size (or through shell params)
-1. add graceful disconnect/stop
+1. sockets and commands
 1. log/save data
 1. error handling
 1. organize into classes
