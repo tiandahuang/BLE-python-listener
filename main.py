@@ -6,6 +6,8 @@ from collections import OrderedDict
 from bleak import BleakScanner
 from bleak import BleakClient
 
+# temporary print function for core-hydration system
+# replace with generic
 def hydration_print_data(byte_array):
     unsigned = lambda b: int.from_bytes(b, byteorder='little', signed=False)
     signed = lambda b: int.from_bytes(b, byteorder='little', signed=True)
@@ -89,11 +91,6 @@ async def main():
 
     device, _ =  await find_device(args.name)
     await device_connect(device, args)
-
-    # TODO: is 'Nordic UART TX' always the last GATT handle
-    # TODO: handle for incoming messages
-    # TODO: longer timeout, handle timeout
-    # TODO: gather for multiple devices
 
 
 if __name__ == '__main__':
