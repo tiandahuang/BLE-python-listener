@@ -1,3 +1,6 @@
 # BLE monitoring Python package:
 # pypi.org/project/bleak/
 bleak == 0.18.1
+
+matplotlib
+numpy

@@ -4,7 +4,7 @@
 TODO:
 
 1. plotting
-1. read config file for configuring packet size (or through shell params)
+1. read config file for configuring packet size (or through shell params) - bit sign extend, filtering, arbitrary functions
 1. sockets and commands
 1. log/save data
 1. error handling

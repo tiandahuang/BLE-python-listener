@@ -2,24 +2,41 @@ import asyncio
 import sys
 from argparse import ArgumentParser
 from collections import OrderedDict
+from collections import deque
+
+import numpy as np
+import matplotlib.pyplot as plt
 
 from bleak import BleakScanner
 from bleak import BleakClient
 
 # temporary print function for core-hydration system
 # replace with generic
-def hydration_print_data(byte_array):
-    unsigned = lambda b: int.from_bytes(b, byteorder='little', signed=False)
-    signed = lambda b: int.from_bytes(b, byteorder='little', signed=True)
 
-    DATA_SPLIT = OrderedDict({
-                    'num':{'len':2, 'convert':unsigned},
-                    'resistance':{'len':4, 'convert':signed},
-                    'reactance':{'len':4, 'convert':signed},
-                    'temp 1':{'len':2, 'convert':unsigned},
-                    'temp 2':{'len':2, 'convert':unsigned}
-                })
-    EXPECTED_LEN = sum(map(lambda x: x['len'], DATA_SPLIT.values()))
+QUEUE_LEN = 10
+unsigned = lambda b: int.from_bytes(b, byteorder='little', signed=False)
+signed = lambda b: int.from_bytes(b, byteorder='little', signed=True)
+DATA_SPLIT = OrderedDict({
+                'num':{'len':2, 'convert':unsigned},
+                'resistance':{'len':4, 'convert':signed},
+                'reactance':{'len':4, 'convert':signed},
+                'temp 1':{'len':2, 'convert':unsigned},
+                'temp 2':{'len':2, 'convert':unsigned}
+            })
+EXPECTED_LEN = sum(map(lambda x: x['len'], DATA_SPLIT.values()))
+data_queues = {name:deque(np.zeros(QUEUE_LEN), QUEUE_LEN) for name in DATA_SPLIT.keys()}
+
+def hydration_update_plot():
+    global data_queues
+
+    plt.gca().cla()
+    for key in DATA_SPLIT:
+        plt.plot(data_queues[key])
+    plt.draw()
+
+
+def hydration_print_data(byte_array):
+    global data_queues
 
     if len(byte_array) != EXPECTED_LEN:
         print(f'error {len(byte_array)} bytes recieved, {EXPECTED_LEN} bytes expected')
@@ -28,9 +45,11 @@ def hydration_print_data(byte_array):
     idx = 0
     for key in DATA_SPLIT:
         data = DATA_SPLIT[key]['convert'](byte_array[idx:idx+DATA_SPLIT[key]['len']])
+        data_queues[key].append(data)
         print(f'{key}: {data}', end=' | ')
         idx += DATA_SPLIT[key]['len']
     print('')
+    hydration_update_plot()
 
 async def find_device(name):
     stop_event = asyncio.Event()
@@ -94,5 +113,8 @@ async def main():
 
 
 if __name__ == '__main__':
+    plt.figure()
+    plt.ion()
+    plt.show()
     asyncio.run(main())
     
