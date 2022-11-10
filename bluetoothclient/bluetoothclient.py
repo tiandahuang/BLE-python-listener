@@ -1,11 +1,4 @@
 import asyncio
-import sys
-
-from collections import OrderedDict
-from collections import deque
-
-import numpy as np
-import matplotlib.pyplot as plt
 
 from bleak import BleakScanner
 from bleak import BleakClient
@@ -22,6 +15,8 @@ class BluetoothClient:
     def __init__(self, id : str, **kwargs):
         self.name = id
         self.gatt_descriptor = kwargs['descriptor']
+    
+    async def pair(self):
         await self.__find()
         await self.__connect()
 
@@ -32,7 +27,7 @@ class BluetoothClient:
             nonlocal self
             if dev.name == self.name:
                 found_event.set()
-                self.device = device
+                self.device = dev
 
         async with BleakScanner(detection_callback) as scanner:
             # TODO: handle device not found
@@ -55,7 +50,7 @@ class BluetoothClient:
 
                 if any((gatt_char := gatt).description == self.gatt_descriptor 
                     for gatt in characteristics.values()):
-                    print(gatt_nordic_uart_tx)
+                    print(gatt_char)
 
                 await client.start_notify(gatt_char, recieve_callback)
                 await self.disconnect_event.wait()
