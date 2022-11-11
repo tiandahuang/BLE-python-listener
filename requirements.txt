@@ -4,3 +4,4 @@ bleak == 0.18.1
 
 matplotlib
 numpy
+scipy
