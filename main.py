@@ -78,7 +78,9 @@ async def device_main(recieve_queue, args):
 def device_process(recieve_queue, args):
     asyncio.run(device_main(recieve_queue, args))
     
-
+def datastream_process(recieve_queue, args):
+    datastream = dataprocessing.DataStream("", recieve_queue)
+    datastream.run()
 
 if __name__ == '__main__':
     
@@ -89,10 +91,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     recieve_queue = mp.Queue()
-    reciever = dataprocessing.DataStream("", recieve_queue)
     p1 = mp.Process(target=device_process, args=(recieve_queue, args))
-
     p1.start()
+
+    reciever = mp.Process(target=datastream_process, args=(recieve_queue, args))
+    # reciever = dataprocessing.DataStream("", recieve_queue)
     reciever.start()
 
     p1.join()
