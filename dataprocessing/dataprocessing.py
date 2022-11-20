@@ -52,6 +52,7 @@ class DataStream():
     TODO: data logging
     TODO: update plotting at interval
     TODO: globals -> class constants
+    TODO: multidevice
     """
     
     def __init__(self, config_fname : str, queue : mp.Queue, **kwargs) -> None:
@@ -65,19 +66,23 @@ class DataStream():
 
     class WrongMSGLenError(Exception): 
         """ Raised when recieved byte array is of an incorrect length """
-        pass
+        def __init__(self, byte_array, len_expected):
+            self.byte_array = byte_array
+            self.len_expected = len_expected
+        def __str__(self):
+            return f'error {len(self.byte_array)} bytes recieved, {self.len_expected} bytes expected: {self.byte_array}'
+        
     class DisconnectedError(Exception):
         """ Raised when a disconnect message is recieved from the queue """
-        pass
+        def __str__(self):
+            return 'DataStream disconnected'
 
     def parse_data(self) -> None:
         byte_array = self.q.get(block=True)
         if len(byte_array) == 0: raise self.DisconnectedError()
 
-        if len(byte_array) != EXPECTED_LEN:
-            print(f'error {len(byte_array)} bytes recieved, {EXPECTED_LEN} bytes expected')
-            print(byte_array)
-            raise self.WrongMSGLenError()
+        if len(byte_array) != EXPECTED_LEN: raise self.WrongMSGLenError(byte_array, EXPECTED_LEN)
+
         idx = 0
         for key in DATA_SPLIT:
             for _ in range(DATA_SPLIT[key].get('multi', 1)):
@@ -87,52 +92,43 @@ class DataStream():
         # print('')
 
     def run(self) -> None:
-        last_ns = time.time_ns()
         while True:
+            self.plot.update()
             try:
                 self.parse_data()
-            except self.WrongMSGLenError:
-                pass
-            except self.DisconnectedError:
+            except self.WrongMSGLenError as e:
+                print(e)
+            except self.DisconnectedError as e:
+                print(e)
                 self.plot.stop()
                 return
-            if time.time_ns() - last_ns > self.refresh_period_ns:
-                last_ns = time.time_ns()
-                self.plot.update()
 
 
 
 class DataPlotting:
     """
     Plots streamed data using Matplotlib
-    TODO: blit
-    TODO: support resizing
+    Uses blitting for responsive graph updates
     """
 
-    def __init__(self, graphics_queues : dict[deque], *args, **kwargs) -> None:
+    def __init__(self, graphics_queues : dict[deque], id=0, *args, **kwargs) -> None:
         self.queues = graphics_queues
 
         SUBPLOT_ROWS = len(graphics_queues)
         SUBPLOT_COLS = 1
 
         self.fig = plt.figure()
+        self.resize_event = self.fig.canvas.mpl_connect('resize_event', self.redraw)
+
         self.axes = {key:self.fig.add_subplot(SUBPLOT_ROWS, SUBPLOT_COLS, i+1) 
                      for i, key in enumerate(graphics_queues)}
-
-        self.lines = {key:(self.axes[key].plot([20000 for _ in range(maxlen(key))],
-                           color=DATA_SPLIT[key]['color'])[0]) 
+        self.clear = {key:[20000 for _ in range(maxlen(key))]
                       for key in self.axes}
-
-        # plot title, label, and color config
-        for key in self.axes:
-            self.axes[key].set_ylabel(key)
-            self.axes[key].set_ylim((-10000, 10000))
-            self.axes[key].xaxis.set_visible(False)
         
-        self.fig.canvas.draw()
+        self._reset_axes()
         plt.show(block=False)
         plt.pause(0.5)
-        self.update_background()
+        self._update_background()
 
     def update(self):
         for key in self.lines:
@@ -143,11 +139,31 @@ class DataPlotting:
         
         self.fig.canvas.flush_events()
 
-    def update_background(self):
-        self.backgrounds = {key:self.fig.canvas.copy_from_bbox(self.axes[key].bbox) 
-                            for key in self.axes}
+    def redraw(self, event):
+        for key in self.axes: self.axes[key].cla()
+        self._reset_axes()
+        self._update_background()
+        self.update()
 
     def stop(self):
         plt.show()
 
+    def _reset_axes(self):
+        self.lines = {key:(self.axes[key].plot(self.clear[key],
+                           color=DATA_SPLIT[key]['color'])[0]) 
+                      for key in self.axes}
+
+        # plot title, label, and color config
+        for key in self.axes:
+            self.axes[key].set_ylabel(key)
+            self.axes[key].set_ylim((-10000, 10000))
+            self.axes[key].xaxis.set_visible(False)
+        
+        self.fig.canvas.draw()
+
+    def _update_background(self):
+        self.backgrounds = {key:self.fig.canvas.copy_from_bbox(self.axes[key].bbox) 
+                            for key in self.axes}
+
+    
     
