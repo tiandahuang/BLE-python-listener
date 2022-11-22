@@ -1,1 +1,1 @@
-from bluetoothclient import BluetoothClient
+from .bluetoothclient import BluetoothClient
