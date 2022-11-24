@@ -27,15 +27,13 @@ from collections import deque
 
 class DataStream():
     """
-    Recieves and filters data from multiple devices
+    Recieves and filters data for a single device
     Also responsible for plotting recieved data
 
     Data is recieved through a multiprocessing queue from a sender process
 
     TODO: input config parsing
-    TODO: signal processing
     TODO: data logging
-    TODO: test multidevice
     """
     
     QUEUE_BASE_LEN = 100
@@ -50,41 +48,50 @@ class DataStream():
     def _max_deque_len(data_config, key):
         return DataStream.QUEUE_BASE_LEN * data_config[key].get('multi', 1)
 
+    B_COEFS = [0.87685389, -3.50741556,  5.26112334, -3.50741556,  0.87685389]
+    A_COEFS = [1.0, -3.73735339,  5.24600331, -3.27743279,  0.76887274]
     DATA_SPLIT = {
         'accel_x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
         'accel_y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-        'accel_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
+        'accel_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0), 
+            'filt':{'b':B_COEFS, 'a':A_COEFS, 'gain':5}},
         'gyro_x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
         'gyro_y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
         'gyro_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
     }
     EXPECTED_LEN = sum(map(lambda x: x['len']*x.get('multi', 1), DATA_SPLIT.values()))
 
-    def __init__(self, queue : mp.Queue, **kwargs) -> None:
-        self.q = queue
-        self.current_id = 0
-        self.devices = {}           # dict of (device : id)
 
-        # per-device fields, indexed with device id
-        self.data_config = []       # list of data parsing configs
-        self.expected_lens = []     # list of expected message lengths  # TODO: embed in data_config json
-        self.graphics_queues = []   # list of deques for plotting
-        self.figures = []           # list of figure references
+    def __init__(self, queue : mp.Queue, dev_name : str, config_file : str, **kwargs) -> None:
+        self.q = queue
+        self.name = None
+
+        # data parsing config
+        self.data_config = self.DATA_SPLIT
+
+        # per-data-field initialization
+        self.lfilt_a = {}; self.lfilt_b = {}; self.lfilt_gain = {}; self.lfilt_zi = {}
+        self.graphics_queues = {}
+        
+        for key in self.data_config:
+            self.graphics_queues[key] = deque(
+                    [0.0 for _ in range(DataStream._max_deque_len(self.data_config, key))], 
+                    DataStream._max_deque_len(self.data_config, key))
+            
+            # filter initial condition and parameters
+            if 'filt' in self.data_config[key]:
+                self.lfilt_b[key] = self.data_config[key]['filt']['b']
+                self.lfilt_a[key] = self.data_config[key]['filt'].get('a', [1.0])
+                self.lfilt_gain[key] = self.data_config[key]['filt'].get('gain', 1.0)
+                self.lfilt_zi[key] = signal.lfiltic(self.lfilt_b[key], self.lfilt_a[key], 0, 0)
+
+        # initialize plotting
+        self.figure = DataPlotting(
+            self.graphics_queues, 
+            {key:np.divide(self.data_config[key]['color'], 256) 
+                for key in self.data_config})
         
         self.refresh_period_ns = 1e9 / self.PLOT_REFRESH_FPS
-
-    def add_device(self, dev_name : str, config_file : str):
-        self.devices[dev_name] = self.current_id
-        self.current_id += 1
-
-        self.data_config.append(self.DATA_SPLIT)
-        self.graphics_queues.append({key:deque([0.0 for _ in range(DataStream._max_deque_len(self.data_config[-1], key))], 
-                                               DataStream._max_deque_len(self.data_config[-1], key)) 
-                                     for key in self.data_config[-1]})
-        self.figures.append(DataPlotting(self.graphics_queues[-1], 
-                            {key:np.divide(self.data_config[-1][key]['color'], 256) 
-                             for key in self.data_config[-1]}))
-        
 
     def parse_data(self) -> None:
         byte_array = self.q.get(block=True)
@@ -92,27 +99,35 @@ class DataStream():
         if len(byte_array) == 0: raise self.DisconnectedError()
         if len(byte_array) != self.EXPECTED_LEN: raise self.WrongMSGLenError(byte_array, self.EXPECTED_LEN)
 
-        id = 0
-
-        curr_config = self.data_config[id]
         idx = 0
-        for key in curr_config:
-            for _ in range(curr_config[key].get('multi', 1)):
-                data = curr_config[key]['convert'](byte_array[idx:(idx := idx+curr_config[key]['len'])])
-                self.graphics_queues[id][key].append(data)
+        for key in self.data_config:
+            for _ in range(self.data_config[key].get('multi', 1)):
+                rawdata = self.data_config[key]['convert'](byte_array[idx:(idx := idx+self.data_config[key]['len'])])
+                
+                if 'filt' in self.data_config[key]:
+                    filtdata, self.lfilt_zi[key] = signal.lfilter(
+                            self.lfilt_b[key], 
+                            self.lfilt_a[key], 
+                            (rawdata,), 
+                            zi=self.lfilt_zi[key])
+                    data = self.lfilt_gain[key]*filtdata
+                    self.graphics_queues[key].append(data)
+                else:
+                    self.graphics_queues[key].append(rawdata)
+                
                 # print(f'{key}:{data}', end='|')
         # print('')
 
     def run(self) -> None:
         while True:
-            self.figures[0].update()
+            self.figure.update()
             try:
                 self.parse_data()
             except self.WrongMSGLenError as e:
                 print(e)
             except self.DisconnectedError as e:
                 print(e)
-                self.figures[0].stop()
+                self.figure.stop()
                 return
 
     class WrongMSGLenError(Exception): 

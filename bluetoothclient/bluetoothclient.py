@@ -7,10 +7,9 @@ from bleak import BleakClient
 class BluetoothClient:
     """
     Class containing a bluetooth client's connection details
-    Contains a BleakClient, a parsing method, a data processing method,
-    and a plotting method
+    Runs entirely asynchronously, await the run method to start
 
-    Uses async
+    TODO: add debugging methods (discover)
     """
 
     def __init__(self, queue : mp.Queue, device_name : str, args) -> None:

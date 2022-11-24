@@ -32,8 +32,7 @@ def device_process(recieve_queue, args):
 # data recieving process ######################################################
 
 def datastream_process(recieve_queue, args):
-    datastream = dataprocessing.DataStream(recieve_queue)
-    datastream.add_device("test_device", "test_config")
+    datastream = dataprocessing.DataStream(recieve_queue, "test_device", "test_config")
     datastream.run()
 
 ###############################################################################
