@@ -48,17 +48,25 @@ class DataStream():
     def _max_deque_len(data_config, key):
         return DataStream.QUEUE_BASE_LEN * data_config[key].get('multi', 1)
 
-    B_COEFS = [0.87685389, -3.50741556,  5.26112334, -3.50741556,  0.87685389]
-    A_COEFS = [1.0, -3.73735339,  5.24600331, -3.27743279,  0.76887274]
+    B_COEFS = [0.81587532, -4.0793766, 8.1587532, -8.1587532,  4.0793766, -0.81587532]
+    A_COEFS = [1.0, -4.5934214, 8.45511522, -7.79491832, 3.59890277, -0.66565254]
     DATA_SPLIT = {
         'accel_x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
         'accel_y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-        'accel_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0), 
-            'filt':{'b':B_COEFS, 'a':A_COEFS, 'gain':5}},
+        'accel_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
+            # 'filt':{'b':B_COEFS, 'a':A_COEFS, 'gain':5}},
         'gyro_x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
         'gyro_y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
         'gyro_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
     }
+    # DATA_SPLIT = {
+    #     'num':{'len':2, 'convert':partial(_bytes_to_int, signed=False), 'color':(0,256,0)},
+    #     'ppg-r':{'len':4, 'convert':partial(_bytes_to_int, signed=False), 'multi':5, 'color':(256,0,0),
+    #         'filt':{'b':B_COEFS, 'a':A_COEFS, 'gain':50}},
+    #     'ppg-ir':{'len':4, 'convert':partial(_bytes_to_int, signed=False), 'multi':5, 'color':(256,0,256),
+    #         'filt':{'b':B_COEFS, 'a':A_COEFS, 'gain':50}},
+    #     'temp':{'len':2, 'convert':partial(_bytes_to_int, signed=False), 'color':(0,256,0)}
+    # }
     EXPECTED_LEN = sum(map(lambda x: x['len']*x.get('multi', 1), DATA_SPLIT.values()))
 
 
