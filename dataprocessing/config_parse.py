@@ -22,8 +22,52 @@ class ConfigParser():
         if full_file_name is None: raise self.InvalidFileError(file_name, "invalid file name")
 
         with open(full_file_name) as f:
-            for line in f:
-                print(line[:-1])
+
+            # initialize empty dictionary
+            parsed_dict = {
+                'Packet Information':None,
+                'Signals Information':[],
+                'Biometric Settings':None,
+                'Packet Structure':[]
+            }
+            
+            section_idx = 0
+            signal_subsect = ''
+            curr_signal_ref = None
+
+            for line_num, line in enumerate(f):
+                cleaned_line = line.strip('\n\r\t ')
+                if cleaned_line[0].isdigit():   # start a hierarchical unit
+                    vals = cleaned_line.split(', ')
+                    if section_idx == 0:    # Packet Information
+                        labels = ('frequency', 'bytes')
+                        convert = (int, int)
+                        parsed_dict['Packet Information'] = {labels[i]:convert[i](vals[i]) for i in range(len(labels))}
+                    elif section_idx == 1:  # Signals Information
+                        labels = ('id', 'name', 'bytes-per-data', 'frequency', 'bits-per-data', 'signed')
+                        convert = (int, str, int, int, int, str)
+                        parsed_dict['Signals Information'].append({labels[i]:convert[i](vals[i]) for i in range(len(labels))})
+                        curr_signal_ref = parsed_dict['Signals Information'][-1]
+                    elif section_idx == 2:  # Biometric Settings
+                        # TODO:
+                        pass
+                    elif section_idx == 3:  # Packet Structure
+                        parsed_dict['Packet Structure'].append(int(cleaned_line))
+                elif cleaned_line[0] == '.' and cleaned_line[1] != '.':    # signal subsection
+                    signal_subsect = cleaned_line[1:]
+                    curr_signal_ref[signal_subsect] = {}
+                elif cleaned_line[0:2] == '..' and cleaned_line[2] != '.': # signal sub-subsection
+                    vals = cleaned_line[2:].split(': ')
+                    if signal_subsect == 'graphable':
+                        curr_signal_ref[signal_subsect] = {'color':tuple(map(int, vals[1].split(' ')))}
+                    elif signal_subsect == 'digdisplay':
+                        curr_signal_ref[signal_subsect][vals[0]] = vals[1]
+                    elif signal_subsect == 'filter':
+                        curr_signal_ref[signal_subsect][vals[0]] = list(map(float, vals[1].split(', ')))
+                elif cleaned_line == 'end':
+                    section_idx += 1
+            
+            return parsed_dict
 
     def convert_init_to_json(self, file_name : str) -> None:
         raise NotImplementedError
@@ -48,7 +92,8 @@ class ConfigParser():
 
 def main():
     cfg = ConfigParser()
-    cfg.read('ear_v2.init')
+    print(cfg.read('ear_v1.init'))
+
 
 
 if __name__ == '__main__':

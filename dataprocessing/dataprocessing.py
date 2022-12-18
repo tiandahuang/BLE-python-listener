@@ -1,4 +1,5 @@
 from .dataplotting import DataPlotting
+from .config_parse import ConfigParser
 
 import multiprocessing as mp
 from functools import partial
@@ -42,7 +43,8 @@ class DataStream():
     @staticmethod
     def _bytes_to_int(byte_array : bytearray, signed : bool, bit_length=None):
         bit_length = 8*len(byte_array) if bit_length is None else bit_length
-        return int.from_bytes(byte_array, byteorder='little', signed=signed)
+        if signed: byte_array[(bit_length+7)//8]
+        return int.from_bytes(byte_array[:(bit_length+7)//8], byteorder='little', signed=signed)
     
     @staticmethod
     def _max_deque_len(data_config, key):
@@ -75,6 +77,7 @@ class DataStream():
         self.name = None
 
         # data parsing config
+        parser = ConfigParser()
         self.data_config = self.DATA_SPLIT
 
         # per-data-field initialization
