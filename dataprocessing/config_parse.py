@@ -1,9 +1,6 @@
 import json
 import os
 
-
-
-
 class ConfigParser():
     """
     Load, store, and convert config/init files.
@@ -18,9 +15,37 @@ class ConfigParser():
         if default_init_dir is not None: ConfigParser.default_init_directory = default_init_dir
 
     def read(self, file_name : str) -> dict:
-        full_file_name = self.get_full_file_name(file_name)
-        if full_file_name is None: raise self.InvalidFileError(file_name, "invalid file name")
+        full_file_name = self._get_full_file_name(file_name)
+        if full_file_name is None: raise self.InvalidFileError(full_file_name, 'invalid file name')
 
+        ext = os.path.splitext(full_file_name)[1]
+        if ext == '.init': parsed_dict = self._init_to_dict(full_file_name)
+        elif ext == '.json': parsed_dict = self._json_to_dict(full_file_name)
+        else: raise self.InvalidFileError(full_file_name, 'invalid file extension')
+
+        return parsed_dict
+
+    def convert_init_to_json(self, file_name : str, dest=None) -> None:
+        full_file_name = self._get_full_file_name(file_name)
+        if full_file_name is None: raise self.InvalidFileError(full_file_name, 'invalid file name')
+        file_no_ext, ext = os.path.splitext(full_file_name)
+        if ext != '.init': raise self.InvalidFileError(full_file_name, 'invalid file extension')
+
+        full_file_name_json = file_no_ext + '.json'
+        with open(full_file_name_json, 'w') as f:
+            json.dump(self._init_to_dict(full_file_name), f, indent=4)
+
+    def convert_json_to_init(self, file_name : str, destination=None) -> None:
+        full_file_name = self._get_full_file_name(file_name)
+        if full_file_name is None: raise self.InvalidFileError(full_file_name, 'invalid file name')
+        file_no_ext, ext = os.path.splitext(full_file_name)[1]
+        if ext != '.init': raise self.InvalidFileError(full_file_name, 'invalid file extension')
+
+        full_file_name_json = file_no_ext + '.init'
+        with open(full_file_name_json, 'w') as f:
+            raise NotImplementedError
+
+    def _init_to_dict(self, full_file_name : str) -> dict:
         with open(full_file_name) as f:
 
             # initialize empty dictionary
@@ -69,14 +94,13 @@ class ConfigParser():
             
             return parsed_dict
 
-    def convert_init_to_json(self, file_name : str) -> None:
-        raise NotImplementedError
-
-    def convert_json_to_init(self, file_name=None, destination=None) -> None:
-        raise NotImplementedError
+    def _json_to_dict(self, full_file_name : str) -> dict:
+        with open(full_file_name) as f:
+            parsed_dict = json.load(f)
+        return parsed_dict
 
     @classmethod
-    def get_full_file_name(self, file_name : str) -> bool:
+    def _get_full_file_name(self, file_name : str) -> bool:
         full_path = os.path.join(ConfigParser.default_init_directory, file_name)
         if os.path.isfile(file_name): return os.path.abspath(file_name)
         elif os.path.isfile(full_path): return full_path
@@ -91,8 +115,10 @@ class ConfigParser():
             return f'error {self.fname}: {self.message}'
 
 def main():
+    fname = 'ear_v1.json'
     cfg = ConfigParser()
-    print(cfg.read('ear_v1.init'))
+    print(json.dumps(cfg.read(fname), indent=4))
+    cfg.convert_init_to_json(fname)
 
 
 
