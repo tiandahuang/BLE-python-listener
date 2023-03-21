@@ -37,38 +37,43 @@ class DataStream():
     TODO: data logging
     """
     
-    QUEUE_BASE_LEN = 100
+    QUEUE_BASE_LEN = 10
     PLOT_REFRESH_FPS = 60
 
     @staticmethod
     def _bytes_to_int(byte_array : bytearray, signed : bool, bit_length=None):
         bit_length = 8*len(byte_array) if bit_length is None else bit_length
-        if signed: byte_array[(bit_length+7)//8]
+        # if signed: byte_array[(bit_length+7)//8]
         return int.from_bytes(byte_array[:(bit_length+7)//8], byteorder='little', signed=signed)
     
     @staticmethod
     def _max_deque_len(data_config, key):
         return DataStream.QUEUE_BASE_LEN * data_config[key].get('multi', 1)
 
-    B_COEFS = [0.81587532, -4.0793766, 8.1587532, -8.1587532,  4.0793766, -0.81587532]
-    A_COEFS = [1.0, -4.5934214, 8.45511522, -7.79491832, 3.59890277, -0.66565254]
-    DATA_SPLIT = {
-        'accel_x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-        'accel_y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-        'accel_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-            # 'filt':{'b':B_COEFS, 'a':A_COEFS, 'gain':5}},
-        'gyro_x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-        'gyro_y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-        'gyro_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-    }
+    # B_COEFS = [0.81587532, -4.0793766, 8.1587532, -8.1587532,  4.0793766, -0.81587532]
+    # A_COEFS = [1.0, -4.5934214, 8.45511522, -7.79491832, 3.59890277, -0.66565254]
+    B_COEFS = [0.99446179, -1.98892358,  0.99446179]
+    A_COEFS = [1.0, -1.98889291,  0.98895425]
     # DATA_SPLIT = {
-    #     'num':{'len':2, 'convert':partial(_bytes_to_int, signed=False), 'color':(0,256,0)},
-    #     'ppg-r':{'len':4, 'convert':partial(_bytes_to_int, signed=False), 'multi':5, 'color':(256,0,0),
-    #         'filt':{'b':B_COEFS, 'a':A_COEFS, 'gain':50}},
-    #     'ppg-ir':{'len':4, 'convert':partial(_bytes_to_int, signed=False), 'multi':5, 'color':(256,0,256),
-    #         'filt':{'b':B_COEFS, 'a':A_COEFS, 'gain':50}},
-    #     'temp':{'len':2, 'convert':partial(_bytes_to_int, signed=False), 'color':(0,256,0)}
+    #     'accel_x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
+    #     'accel_y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
+    #     'accel_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
+    #         # 'filt':{'b':B_COEFS, 'a':A_COEFS, 'gain':5}},
+    #     'gyro_x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
+    #     'gyro_y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
+    #     'gyro_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
     # }
+    SENIOR_DESIGN_DATA_MULTI = 20
+    DATA_SPLIT = {
+        'num':{'len':2, 'convert':partial(_bytes_to_int, signed=False), 'color':(0,256,0)},
+        'temp':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(0,256,0)},
+        'accel x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)},
+        'accel y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)},
+        'accel z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)},
+        'gyro x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)},
+        'gyro y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)},
+        'gyro z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)}
+    }
     EXPECTED_LEN = sum(map(lambda x: x['len']*x.get('multi', 1), DATA_SPLIT.values()))
 
 
@@ -110,24 +115,32 @@ class DataStream():
         if len(byte_array) == 0: raise self.DisconnectedError()
         if len(byte_array) != self.EXPECTED_LEN: raise self.WrongMSGLenError(byte_array, self.EXPECTED_LEN)
 
-        idx = 0
-        for key in self.data_config:
-            for _ in range(self.data_config[key].get('multi', 1)):
-                rawdata = self.data_config[key]['convert'](byte_array[idx:(idx := idx+self.data_config[key]['len'])])
+        decode = lambda start, len: self._bytes_to_int(byte_array[start:start+len], True)
+
+        self.graphics_queues['num'].append(decode(0, 2))
+        self.graphics_queues['temp'].append(decode(2, 2) / 1000)
+
+        for sense_idx, sense in enumerate(('accel', 'gyro')):
+            for i in range(self.SENIOR_DESIGN_DATA_MULTI):
+                for axis_idx, axis in enumerate((' x', ' y', ' z')):
+                    data = decode(4 + 120*sense_idx + 6*i + 2*axis_idx, 2)
+                    self.graphics_queues[sense + axis].append(data)
+
+        # idx = 0
+        # for key in self.data_config:
+        #     for _ in range(self.data_config[key].get('multi', 1)):
+        #         rawdata = self.data_config[key]['convert'](byte_array[idx:(idx := idx+self.data_config[key]['len'])])
                 
-                if 'filt' in self.data_config[key]:
-                    filtdata, self.lfilt_zi[key] = signal.lfilter(
-                            self.lfilt_b[key], 
-                            self.lfilt_a[key], 
-                            (rawdata,), 
-                            zi=self.lfilt_zi[key])
-                    data = self.lfilt_gain[key]*filtdata
-                    self.graphics_queues[key].append(data)
-                else:
-                    self.graphics_queues[key].append(rawdata)
-                
-                # print(f'{key}:{data}', end='|')
-        # print('')
+        #         if 'filt' in self.data_config[key]:
+        #             filtdata, self.lfilt_zi[key] = signal.lfilter(
+        #                     self.lfilt_b[key], 
+        #                     self.lfilt_a[key], 
+        #                     (rawdata,), 
+        #                     zi=self.lfilt_zi[key])
+        #             data = self.lfilt_gain[key]*filtdata
+        #             self.graphics_queues[key].append(data)
+        #         else:
+        #             self.graphics_queues[key].append(rawdata)
 
     def run(self) -> None:
         while True:
