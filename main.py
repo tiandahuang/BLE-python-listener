@@ -1,120 +1,60 @@
 import asyncio
-import sys
+import multiprocessing as mp
+
 from argparse import ArgumentParser
-from collections import OrderedDict
-from collections import deque
 
-import numpy as np
-import matplotlib.pyplot as plt
+import dataprocessing
+import bluetoothclient
 
-from bleak import BleakScanner
-from bleak import BleakClient
+background_tasks = set()
 
-# temporary print function for core-hydration system
-# replace with generic
+def add_to_background_tasks(coroutine, *args, **kwargs):
+    task = asyncio.create_task(coroutine(*args, **kwargs))
+    background_tasks.add(task)
+    task.add_done_callback(background_tasks.discard)
+    return task
 
-QUEUE_LEN = 10
-unsigned = lambda b: int.from_bytes(b, byteorder='little', signed=False)
-signed = lambda b: int.from_bytes(b, byteorder='little', signed=True)
-DATA_SPLIT = OrderedDict({
-                'num':{'len':2, 'convert':unsigned},
-                'resistance':{'len':4, 'convert':signed},
-                'reactance':{'len':4, 'convert':signed},
-                'temp 1':{'len':2, 'convert':unsigned},
-                'temp 2':{'len':2, 'convert':unsigned}
-            })
-EXPECTED_LEN = sum(map(lambda x: x['len'], DATA_SPLIT.values()))
-data_queues = {name:deque(np.zeros(QUEUE_LEN), QUEUE_LEN) for name in DATA_SPLIT.keys()}
+async def dloop(recieve_queue, args):
+    await bluetoothclient.BluetoothClient(recieve_queue, args.name, args).run()
 
-def hydration_update_plot():
-    global data_queues
+# bluetooth connection process ################################################
 
-    plt.gca().cla()
-    for key in DATA_SPLIT:
-        plt.plot(data_queues[key])
-    plt.draw()
+async def device_main(recieve_queue, args):
+    await add_to_background_tasks(dloop, recieve_queue, args)
+
+def device_process(recieve_queue, args):
+    asyncio.run(device_main(recieve_queue, args))
+
+###############################################################################
 
 
-def hydration_print_data(byte_array):
-    global data_queues
 
-    if len(byte_array) != EXPECTED_LEN:
-        print(f'error {len(byte_array)} bytes recieved, {EXPECTED_LEN} bytes expected')
-        print(byte_array)
-        return
-    idx = 0
-    for key in DATA_SPLIT:
-        data = DATA_SPLIT[key]['convert'](byte_array[idx:idx+DATA_SPLIT[key]['len']])
-        data_queues[key].append(data)
-        print(f'{key}: {data}', end=' | ')
-        idx += DATA_SPLIT[key]['len']
-    print('')
-    hydration_update_plot()
+# data recieving process ######################################################
 
-async def find_device(name):
-    stop_event = asyncio.Event()
-    device = None
-    advertising_data = None
+def datastream_process(recieve_queue, args):
+    datastream = dataprocessing.DataStream(recieve_queue, "test_device", "test_config")
+    datastream.run()
 
-    def detection_callback(dev, advert):
-        if dev.name == name:
-            stop_event.set()
-            nonlocal device
-            nonlocal advertising_data
-            device = dev
-            advertising_data = advert
-
-    async with BleakScanner(detection_callback) as scanner:
-        await stop_event.wait()
-
-    print(f'Found device: {device}')
-    print(advertising_data)
-    return device, advertising_data
+###############################################################################
 
 
-async def device_connect(device, args):
-
-    disconnect_event = asyncio.Event()
-
-    def disconnect_callback(dev):
-        disconnect_event.set()
-        print(f'disconnected: {dev}')
-
-    def recieve_callback(gatt_char, data):
-        hydration_print_data(data)
-
-    try:
-        async with BleakClient(device, disconnect_callback, timeout=args.timeout) as client:
-            characteristics = client.services.characteristics.copy()
-
-            if any((gatt_nordic_uart_tx := gatt).description == args.gatt_descriptor 
-                   for gatt in characteristics.values()):
-                print(gatt_nordic_uart_tx)
-
-            await client.start_notify(gatt_nordic_uart_tx, recieve_callback)
-            await disconnect_event.wait()
-
-    except asyncio.exceptions.CancelledError:
-        print('connection cancelled')
-    except asyncio.exceptions.TimeoutError:
-        print('connection timeout')
-
-
-async def main():
-
+if __name__ == '__main__':
+    
     parser = ArgumentParser(description='Connect to a BLE device')
     parser.add_argument('name')
     parser.add_argument('--timeout', '-t', dest='timeout', default=20.0)
     parser.add_argument('--gatt_char', '-g', dest='gatt_descriptor', default='Nordic UART TX')
     args = parser.parse_args()
 
-    device, _ =  await find_device(args.name)
-    await device_connect(device, args)
+    recieve_queue = mp.Queue()
+    p1 = mp.Process(target=device_process, args=(recieve_queue, args))
+    p1.start()
 
+    reciever = mp.Process(target=datastream_process, args=(recieve_queue, args))
+    # reciever = dataprocessing.DataStream("", recieve_queue)
+    reciever.start()
 
-if __name__ == '__main__':
-    plt.figure()
-    plt.ion()
-    plt.show()
-    asyncio.run(main())
+    p1.join()
+    reciever.join()
+
     
