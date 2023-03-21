@@ -2,6 +2,8 @@ import sys
 
 import matplotlib.pyplot as plt
 from collections import deque
+import time
+import math
 
 class DataPlotting:
     """
@@ -24,12 +26,8 @@ class DataPlotting:
         self.clear = {key:[sys.float_info.max for _ in graphics_queues[key]]
                       for key in self.axes}
         
-        # self._reset_axes()
-        plt.show(block=False)
-        plt.pause(0.5)
+        self.fig.show()
         self.redraw()
-        # self._update_background()
-        # self.update()
 
     def update(self):
         for key in self.lines:
@@ -48,7 +46,7 @@ class DataPlotting:
 
     def stop(self):
         print('displaying last output. close figure to continue')
-        plt.show()
+        self.fig.show()
 
     def _reset_axes(self):
         self.lines = {key:(self.axes[key].plot(self.clear[key],
@@ -67,3 +65,32 @@ class DataPlotting:
         self.backgrounds = {key:self.fig.canvas.copy_from_bbox(self.axes[key].bbox) 
                             for key in self.axes}
 
+    @staticmethod
+    def _dummy_event(event):
+        return
+
+if __name__ == '__main__':
+    # test/benchmark
+
+    t = 0
+
+    p_data = deque([0.0 for _ in range(200)], 200)
+    graph_color = tuple(map(lambda x: x/256, (191,87,0)))
+    p = DataPlotting({'plot':p_data}, {'plot':graph_color})
+
+    t_arr = [0 for _ in range(200)]
+    t_total = 0
+    while True:
+        val = 7500 * math.sin(t/100)
+        p_data.append(val)
+
+        start = time.time()
+
+        p.update()
+
+        elapsed = time.time() - start
+        t_total = t_total - t_arr[t % len(t_arr)] + elapsed
+        t_arr[t % len(t_arr)] = elapsed
+        t += 1
+
+        print('fps', '%.4f                                    ' % (len(t_arr)/(t_total if t_total > 0 else 1e-9)), end='\r')
