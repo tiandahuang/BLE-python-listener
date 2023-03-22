@@ -18,6 +18,8 @@ class DataPlotting:
 
     For 1d live-plotting use CircularBuffer
     For 2d live-plotting use np.ndarray
+
+    TODO: built-in-periodic graph
     """
 
     def __init__(self, 
@@ -62,6 +64,25 @@ class DataPlotting:
         self._reset_axes()
         self._update_background()
         self.update()
+
+    # update_func() should return False when ready to stop and True otherwise
+    def run(self, fps : int, update_func : callable) -> None:
+        self.autoupdate_period = 1/fps
+        self.autoupdate_update = update_func
+
+        # funny little function to sleep for (period - execution time)
+        def get_sleep_time():
+            t = time.time()
+            while True:
+                t += self.autoupdate_period
+                yield max(t - time.time(), 0)
+
+        sleep_time = get_sleep_time()
+        running = True
+        while running:
+            time.sleep(next(sleep_time))
+            running = self.autoupdate_update()
+            self.update()
 
     def stop(self) -> None:
         print('displaying last output. close figure to continue')
@@ -120,13 +141,31 @@ if __name__ == '__main__':
     
     t = 0
 
-    NUM_SUBPLOTS = 1
+    NUM_SUBPLOTS = 16
     LEN_BUFFER = 200
     DIMS_2D = (16, 16)
     TEST_2D = False
+    FPS = 60
 
     p_data = [np.zeros(DIMS_2D) if TEST_2D else CircularBuffer(LEN_BUFFER) for _ in range(NUM_SUBPLOTS)]
-    p = DataPlotting(p_data)
+    p = DataPlotting(p_data, cols=4)
+
+    def update_func():
+        global t
+        if TEST_2D:
+            for i in range(NUM_SUBPLOTS):
+                for j in range(DIMS_2D[0]):
+                    for k in range(DIMS_2D[1]):
+                        p_data[i][j][k] = math.sin((j+k+t)/20)
+        else:
+            val = 0.75 * math.sin(t/100)
+            for i in range(NUM_SUBPLOTS):
+                p_data[i].put(val * (1 if i % 2 == 0 else -1))
+                p_data[i].increment_view()
+        t += 1
+        return True
+
+    p.run(FPS, update_func)
 
     t_arr = [0 for _ in range(200)]
     t_total = 0

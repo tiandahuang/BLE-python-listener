@@ -72,5 +72,5 @@ class PlottingColor:
         random.Random(16).shuffle(colors := '#bf5700 #f8971f #ffd600 #a6cd57 #579d42 #00a9b7 #005f86 #9cadb7 #333f48'.split(' '))
         cls._colors_rgb = list(map(PlottingColor.hex_string_to_normalized, colors))
 
-# initialization
+# initialization -- don't know an elegant way around this
 PlottingColor.init()
