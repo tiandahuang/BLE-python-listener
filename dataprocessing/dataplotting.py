@@ -16,35 +16,39 @@ class DataPlotting:
     """
 
     def __init__(self, data_buffers : list[CircularBuffer], colors : list = None, *args, **kwargs) -> None:
+        self.num_fields = len(data_buffers)
         self.buffers = data_buffers
         self.colors = list(map(PlottingColor.auto_normalize, colors)) if colors is not None else (
-                      list(PlottingColor(len(data_buffers))))
+                      list(PlottingColor(self.num_fields)))
+        self.labels = ["" for i in range(self.num_fields)]      # TODO:
+        self.ylims = [(-1, 1) for i in range(self.num_fields)]  # TODO:
+        self.cols = 1                                           # TODO:
 
-        SUBPLOT_ROWS = len(data_buffers)
-        SUBPLOT_COLS = 1
+        SUBPLOT_ROWS = -(self.num_fields // -self.cols)     # ceiling integer divide
+        SUBPLOT_COLS = self.cols
 
         self.fig = plt.figure()
         self.resize_event = self.fig.canvas.mpl_connect('resize_event', self.redraw)
 
-        self.axes = {key:self.fig.add_subplot(SUBPLOT_ROWS, SUBPLOT_COLS, i+1) 
-                     for i, key in enumerate(data_buffers)}
-        self.clear = {key:[sys.float_info.max for _ in data_buffers[key]]
-                      for key in self.axes}
+        self.axes = [self.fig.add_subplot(SUBPLOT_ROWS, SUBPLOT_COLS, i+1) 
+                     for i in range(self.num_fields)]
+        self.clear = [[sys.float_info.max for _ in data_buffers[i]]
+                      for i in range(self.num_fields)]
         
         self.fig.show()
         self.redraw()
 
     def update(self):
-        for key in self.lines:
-            self.lines[key].set_ydata(self.buffers[key].get_view())
-            self.fig.canvas.restore_region(self.backgrounds[key])
-            self.axes[key].draw_artist(self.lines[key])
-            self.fig.canvas.blit(self.axes[key].bbox)
+        for i in range(self.num_fields):
+            self.fig.canvas.restore_region(self.backgrounds[i])
+            self.lines[i].set_ydata(self.buffers[i].get_view())
+            self.axes[i].draw_artist(self.lines[i])
+            self.fig.canvas.blit(self.axes[i].bbox)
         
         self.fig.canvas.flush_events()
 
     def redraw(self, event=None):
-        for key in self.axes: self.axes[key].cla()
+        for i in range(self.num_fields): self.axes[i].cla()
         self._reset_axes()
         self._update_background()
         self.update()
@@ -54,37 +58,40 @@ class DataPlotting:
         self.fig.show()
 
     def _reset_axes(self):
-        self.lines = {key:(self.axes[key].plot(self.clear[key],
-                           color=self.colors[key])[0]) 
-                      for key in self.axes}
+        self.lines = [self.axes[i].plot(self.clear[i],
+                      color=self.colors[i])[0]
+                      for i in range(self.num_fields)]
 
         # plot title, label, and color config
-        for key in self.axes:
-            self.axes[key].set_ylabel(key)
-            self.axes[key].set_ylim((-10000, 10000))
-            self.axes[key].xaxis.set_visible(False)
+        for i in range(self.num_fields):
+            self.axes[i].set_ylabel(self.labels[i])
+            self.axes[i].set_ylim(self.ylims[i])
+            self.axes[i].xaxis.set_visible(False)
         
         self.fig.canvas.draw()
 
     def _update_background(self):
-        self.backgrounds = {key:self.fig.canvas.copy_from_bbox(self.axes[key].bbox) 
-                            for key in self.axes}
+        self.backgrounds = [self.fig.canvas.copy_from_bbox(self.axes[i].bbox) 
+                            for i in range(self.num_fields)]
 
 if __name__ == '__main__':
     # test/benchmark
     
     t = 0
 
-    p_data = [CircularBuffer(200)]
-    graph_color = [(191,87,0)]
-    p = DataPlotting(p_data, graph_color)
+    NUM_SUBPLOTS = 1
+    LEN_BUFFER = 200
+
+    p_data = [CircularBuffer(LEN_BUFFER) for _ in range(NUM_SUBPLOTS)]
+    p = DataPlotting(p_data)
 
     t_arr = [0 for _ in range(200)]
     t_total = 0
     while True:
-        val = 7500 * math.sin(t/100)
-        p_data.put(val)
-        p_data.increment_view()
+        val = 0.75 * math.sin(t/100)
+        for i in range(NUM_SUBPLOTS):
+            p_data[i].put(val * (1 if i % 2 == 0 else -1))
+            p_data[i].increment_view()
 
         start = time.time()
 
