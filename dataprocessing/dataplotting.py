@@ -1,14 +1,13 @@
 import sys
 
 import matplotlib.pyplot as plt
-from collections import deque
 import time
 import math
 
 if __name__ == '__main__':
-    from circularbuffer import CircularBuffer
+    from plottingutils import CircularBuffer, PlottingColor
 else:
-    from .circularbuffer import CircularBuffer
+    from .plottingutils import CircularBuffer, PlottingColor
 
 class DataPlotting:
     """
@@ -16,9 +15,10 @@ class DataPlotting:
     Uses blitting for responsive graph updates
     """
 
-    def __init__(self, data_buffers : dict[CircularBuffer], colors : dict[tuple], *args, **kwargs) -> None:
+    def __init__(self, data_buffers : list[CircularBuffer], colors : list = None, *args, **kwargs) -> None:
         self.buffers = data_buffers
-        self.colors = colors
+        self.colors = list(map(PlottingColor.auto_normalize, colors)) if colors is not None else (
+                      list(PlottingColor(len(data_buffers))))
 
         SUBPLOT_ROWS = len(data_buffers)
         SUBPLOT_COLS = 1
@@ -70,19 +70,14 @@ class DataPlotting:
         self.backgrounds = {key:self.fig.canvas.copy_from_bbox(self.axes[key].bbox) 
                             for key in self.axes}
 
-    @staticmethod
-    def _dummy_event(event):
-        return
-
 if __name__ == '__main__':
     # test/benchmark
-
+    
     t = 0
 
-    # p_data = deque([0.0 for _ in range(200)], 200)
-    p_data = CircularBuffer(200)
-    graph_color = tuple(map(lambda x: x/256, (191,87,0)))
-    p = DataPlotting({'plot':p_data}, {'plot':graph_color})
+    p_data = [CircularBuffer(200)]
+    graph_color = [(191,87,0)]
+    p = DataPlotting(p_data, graph_color)
 
     t_arr = [0 for _ in range(200)]
     t_total = 0
