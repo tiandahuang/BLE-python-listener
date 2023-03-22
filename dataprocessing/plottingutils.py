@@ -1,7 +1,6 @@
 import numpy as np
 import random
 import re
-import threading
 
 class CircularBuffer:
 
@@ -37,11 +36,8 @@ class PlottingColor:
     Assigns lists of default colors and contains helper functions for color conversion
     """
     _colors_rgb = []
-    _initialized = False
-    _initialized_lock = threading.Lock()
 
     def __init__(self, len):
-        PlottingColor.init()
         self.len = len
 
     def __iter__(self):
@@ -73,8 +69,8 @@ class PlottingColor:
     
     @classmethod
     def init(cls):
-        with cls._initialized_lock:
-            if not cls._initialized: 
-                random.Random(16).shuffle(colors := '#bf5700 #f8971f #ffd600 #a6cd57 #579d42 #00a9b7 #005f86 #9cadb7 #333f48'.split(' '))
-                cls._colors_rgb = list(map(PlottingColor.hex_string_to_normalized, colors))
-                cls._initialized = True
+        random.Random(16).shuffle(colors := '#bf5700 #f8971f #ffd600 #a6cd57 #579d42 #00a9b7 #005f86 #9cadb7 #333f48'.split(' '))
+        cls._colors_rgb = list(map(PlottingColor.hex_string_to_normalized, colors))
+
+# initialization
+PlottingColor.init()

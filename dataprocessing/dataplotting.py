@@ -4,12 +4,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from typing import Union
 
-# for benchmark
-import time
-import math
-
-
 if __name__ == '__main__':
+    import time
+    import math
     from plottingutils import CircularBuffer, PlottingColor
 else:
     from .plottingutils import CircularBuffer, PlottingColor
@@ -126,7 +123,7 @@ if __name__ == '__main__':
     NUM_SUBPLOTS = 1
     LEN_BUFFER = 200
     DIMS_2D = (16, 16)
-    TEST_2D = True
+    TEST_2D = False
 
     p_data = [np.zeros(DIMS_2D) if TEST_2D else CircularBuffer(LEN_BUFFER) for _ in range(NUM_SUBPLOTS)]
     p = DataPlotting(p_data)
