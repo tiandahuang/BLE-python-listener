@@ -5,25 +5,30 @@ from collections import deque
 import time
 import math
 
+if __name__ == '__main__':
+    from circularbuffer import CircularBuffer
+else:
+    from .circularbuffer import CircularBuffer
+
 class DataPlotting:
     """
     Plots streamed data from a single device using Matplotlib
     Uses blitting for responsive graph updates
     """
 
-    def __init__(self, graphics_queues : dict[deque], colors : dict[tuple], *args, **kwargs) -> None:
-        self.queues = graphics_queues
+    def __init__(self, data_buffers : dict[CircularBuffer], colors : dict[tuple], *args, **kwargs) -> None:
+        self.buffers = data_buffers
         self.colors = colors
 
-        SUBPLOT_ROWS = len(graphics_queues)
+        SUBPLOT_ROWS = len(data_buffers)
         SUBPLOT_COLS = 1
 
         self.fig = plt.figure()
         self.resize_event = self.fig.canvas.mpl_connect('resize_event', self.redraw)
 
         self.axes = {key:self.fig.add_subplot(SUBPLOT_ROWS, SUBPLOT_COLS, i+1) 
-                     for i, key in enumerate(graphics_queues)}
-        self.clear = {key:[sys.float_info.max for _ in graphics_queues[key]]
+                     for i, key in enumerate(data_buffers)}
+        self.clear = {key:[sys.float_info.max for _ in data_buffers[key]]
                       for key in self.axes}
         
         self.fig.show()
@@ -31,7 +36,7 @@ class DataPlotting:
 
     def update(self):
         for key in self.lines:
-            self.lines[key].set_ydata(self.queues[key])
+            self.lines[key].set_ydata(self.buffers[key].get_view())
             self.fig.canvas.restore_region(self.backgrounds[key])
             self.axes[key].draw_artist(self.lines[key])
             self.fig.canvas.blit(self.axes[key].bbox)
@@ -74,7 +79,8 @@ if __name__ == '__main__':
 
     t = 0
 
-    p_data = deque([0.0 for _ in range(200)], 200)
+    # p_data = deque([0.0 for _ in range(200)], 200)
+    p_data = CircularBuffer(200)
     graph_color = tuple(map(lambda x: x/256, (191,87,0)))
     p = DataPlotting({'plot':p_data}, {'plot':graph_color})
 
@@ -82,7 +88,8 @@ if __name__ == '__main__':
     t_total = 0
     while True:
         val = 7500 * math.sin(t/100)
-        p_data.append(val)
+        p_data.put(val)
+        p_data.increment_view()
 
         start = time.time()
 
@@ -93,4 +100,4 @@ if __name__ == '__main__':
         t_arr[t % len(t_arr)] = elapsed
         t += 1
 
-        print('fps', '%.4f                                    ' % (len(t_arr)/(t_total if t_total > 0 else 1e-9)), end='\r')
+        print('fps', '%.2f                                    ' % (len(t_arr)/(t_total if t_total > 0 else 1e-9)), end='\r')
