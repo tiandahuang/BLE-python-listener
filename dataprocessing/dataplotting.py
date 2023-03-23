@@ -1,5 +1,7 @@
 import sys
 
+import matplotlib
+matplotlib.use('QtAgg', force=True)
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import Union
@@ -18,8 +20,6 @@ class DataPlotting:
 
     For 1d live-plotting use CircularBuffer
     For 2d live-plotting use np.ndarray
-
-    TODO: built-in-periodic graph
     """
 
     def __init__(self, 
@@ -145,7 +145,7 @@ if __name__ == '__main__':
     COLS = 1
     LEN_BUFFER = 200
     DIMS_2D = (16, 16)
-    TEST_2D = True
+    TEST_2D = False
     TEST_AUTO_REFRESH = False
     FPS = 30
 

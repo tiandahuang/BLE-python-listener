@@ -3,5 +3,6 @@
 bleak == 0.18.1
 
 matplotlib
+PyQt6
 numpy
 scipy
