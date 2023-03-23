@@ -141,54 +141,58 @@ if __name__ == '__main__':
     
     t = 0
 
-    NUM_SUBPLOTS = 16
+    NUM_SUBPLOTS = 1
+    COLS = 1
     LEN_BUFFER = 200
     DIMS_2D = (16, 16)
-    TEST_2D = False
-    FPS = 60
+    TEST_2D = True
+    TEST_AUTO_REFRESH = False
+    FPS = 30
 
     p_data = [np.zeros(DIMS_2D) if TEST_2D else CircularBuffer(LEN_BUFFER) for _ in range(NUM_SUBPLOTS)]
-    p = DataPlotting(p_data, cols=4)
+    p = DataPlotting(p_data, cols=COLS)
 
-    def update_func():
-        global t
-        if TEST_2D:
-            for i in range(NUM_SUBPLOTS):
-                for j in range(DIMS_2D[0]):
-                    for k in range(DIMS_2D[1]):
-                        p_data[i][j][k] = math.sin((j+k+t)/20)
-        else:
-            val = 0.75 * math.sin(t/100)
-            for i in range(NUM_SUBPLOTS):
-                p_data[i].put(val * (1 if i % 2 == 0 else -1))
-                p_data[i].increment_view()
-        t += 1
-        return True
+    if TEST_AUTO_REFRESH:
+        def update_func():
+            global t
+            if TEST_2D:
+                for i in range(NUM_SUBPLOTS):
+                    for j in range(DIMS_2D[0]):
+                        for k in range(DIMS_2D[1]):
+                            p_data[i][j][k] = math.sin((j+k+t)/20)
+            else:
+                val = 0.75 * math.sin(t/100)
+                for i in range(NUM_SUBPLOTS):
+                    p_data[i].put(val * (1 if i % 2 == 0 else -1))
+                    p_data[i].increment_view()
+            t += 1
+            return True
 
-    p.run(FPS, update_func)
+        p.run(FPS, update_func)
 
-    t_arr = [0 for _ in range(200)]
-    t_total = 0
-    while True:
-        
-        if TEST_2D:
-            for i in range(NUM_SUBPLOTS):
-                for j in range(DIMS_2D[0]):
-                    for k in range(DIMS_2D[1]):
-                        p_data[i][j][k] = math.sin((j+k+t)/20)
-        else:
-            val = 0.75 * math.sin(t/100)
-            for i in range(NUM_SUBPLOTS):
-                p_data[i].put(val * (1 if i % 2 == 0 else -1))
-                p_data[i].increment_view()
+    else:
+        t_arr = [0 for _ in range(200)]
+        t_total = 0
+        while True:
+            
+            if TEST_2D:
+                for i in range(NUM_SUBPLOTS):
+                    for j in range(DIMS_2D[0]):
+                        for k in range(DIMS_2D[1]):
+                            p_data[i][j][k] = math.sin((j+k+t)/20)
+            else:
+                val = 0.75 * math.sin(t/100)
+                for i in range(NUM_SUBPLOTS):
+                    p_data[i].put(val * (1 if i % 2 == 0 else -1))
+                    p_data[i].increment_view()
 
-        start = time.time()
+            start = time.time()
 
-        p.update()
+            p.update()
 
-        elapsed = time.time() - start
-        t_total = t_total - t_arr[t % len(t_arr)] + elapsed
-        t_arr[t % len(t_arr)] = elapsed
-        t += 1
+            elapsed = time.time() - start
+            t_total = t_total - t_arr[t % len(t_arr)] + elapsed
+            t_arr[t % len(t_arr)] = elapsed
+            t += 1
 
-        print('fps', '%.2f                                    ' % (len(t_arr)/(t_total if t_total > 0 else 1e-9)), end='\r')
+            print('fps', '%.2f                                    ' % (len(t_arr)/(t_total if t_total > 0 else 1e-9)), end='\r')
