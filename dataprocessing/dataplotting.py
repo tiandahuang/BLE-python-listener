@@ -5,13 +5,9 @@ matplotlib.use('QtAgg', force=True)
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import Union
-
-if __name__ == '__main__':
-    import time
-    import math
-    from plottingutils import CircularBuffer, PlottingColor
-else:
-    from .plottingutils import CircularBuffer, PlottingColor
+import time
+import threading
+from .plottingutils import CircularBuffer, PlottingColor, MovingAverage
 
 class DataPlotting:
     """
@@ -65,10 +61,22 @@ class DataPlotting:
         self._update_background()
         self.update()
 
-    # update_func() should return False when ready to stop and True otherwise
-    def run(self, fps : int, update_func : callable) -> None:
+    # callable should return True if valid, False to stop
+    def run(self, fps : int, update : callable) -> None:
+        end_flag = threading.Event()
+        self.autoupdate_func = update
+
+        update_thread = threading.Thread(target=self._update, args=(end_flag,))
+        plot_thread = threading.Thread(target=self._plot, args=(fps, end_flag))
+
+        update_thread.start()
+        plot_thread.run()
+
+        update_thread.join()
+
+    def _plot(self, fps : int, end : threading.Event) -> None:
         self.autoupdate_period = 1/fps
-        self.autoupdate_update = update_func
+        end_flag = end
 
         # funny little function to sleep for (period - execution time)
         def get_sleep_time():
@@ -78,11 +86,13 @@ class DataPlotting:
                 yield max(t - time.time(), 0)
 
         sleep_time = get_sleep_time()
-        running = True
-        while running:
+        while not end_flag.is_set():
             time.sleep(next(sleep_time))
-            running = self.autoupdate_update()
             self.update()
+
+    def _update(self, end : threading.Event) -> None:
+        while self.autoupdate_func(): pass
+        end.set()
 
     def stop(self) -> None:
         print('displaying last output. close figure to continue')
@@ -135,64 +145,3 @@ class DataPlotting:
             return arg
         else:
             return default
-
-if __name__ == '__main__':
-    # test/benchmark
-    
-    t = 0
-
-    NUM_SUBPLOTS = 1
-    COLS = 1
-    LEN_BUFFER = 200
-    DIMS_2D = (16, 16)
-    TEST_2D = False
-    TEST_AUTO_REFRESH = False
-    FPS = 30
-
-    p_data = [np.zeros(DIMS_2D) if TEST_2D else CircularBuffer(LEN_BUFFER) for _ in range(NUM_SUBPLOTS)]
-    p = DataPlotting(p_data, cols=COLS)
-
-    if TEST_AUTO_REFRESH:
-        def update_func():
-            global t
-            if TEST_2D:
-                for i in range(NUM_SUBPLOTS):
-                    for j in range(DIMS_2D[0]):
-                        for k in range(DIMS_2D[1]):
-                            p_data[i][j][k] = math.sin((j+k+t)/20)
-            else:
-                val = 0.75 * math.sin(t/100)
-                for i in range(NUM_SUBPLOTS):
-                    p_data[i].put(val * (1 if i % 2 == 0 else -1))
-                    p_data[i].increment_view()
-            t += 1
-            return True
-
-        p.run(FPS, update_func)
-
-    else:
-        t_arr = [0 for _ in range(200)]
-        t_total = 0
-        while True:
-            
-            if TEST_2D:
-                for i in range(NUM_SUBPLOTS):
-                    for j in range(DIMS_2D[0]):
-                        for k in range(DIMS_2D[1]):
-                            p_data[i][j][k] = math.sin((j+k+t)/20)
-            else:
-                val = 0.75 * math.sin(t/100)
-                for i in range(NUM_SUBPLOTS):
-                    p_data[i].put(val * (1 if i % 2 == 0 else -1))
-                    p_data[i].increment_view()
-
-            start = time.time()
-
-            p.update()
-
-            elapsed = time.time() - start
-            t_total = t_total - t_arr[t % len(t_arr)] + elapsed
-            t_arr[t % len(t_arr)] = elapsed
-            t += 1
-
-            print('fps', '%.2f                                    ' % (len(t_arr)/(t_total if t_total > 0 else 1e-9)), end='\r')
