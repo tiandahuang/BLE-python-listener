@@ -136,8 +136,9 @@ class DataPlotting:
                             for i in range(self.num_fields)]
 
     def _check_arg(self, arg, default, scalar=False):
-        if not scalar:
+        if arg is None: return default
+        if scalar:
+            return arg
+        else:
             if len(arg) != self.num_fields: raise ValueError
-        return (default 
-                if arg is None
-                else [(a if a is not None else default[i]) for i, a in enumerate(arg)])
+            return [(a if a is not None else default[i]) for i, a in enumerate(arg)]

@@ -59,30 +59,43 @@ class DataStream():
         self._data_lengths = [data_lengths[idx] for idx in expanded_packet_structure]
         self._aligned_data_lengths = [self._round_up_int(blen, 4) for blen in self._data_lengths]
         self._signextend = [(datatypes[idx] == 'int') for idx in expanded_packet_structure]
-        self._offsets = np.cumsum(np.sort(np.array(self._aligned_data_lengths))).tolist()
-        self._reorder = np.argsort(expanded_packet_structure).tolist()
+        self._offsets = [0] + np.cumsum(np.sort(self._aligned_data_lengths)).tolist()[:-1]
+        reorder = np.zeros(len(expanded_packet_structure), dtype=int)
+        reorder[np.argsort(expanded_packet_structure)] = np.arange(len(expanded_packet_structure))
+        self._reorder = reorder.tolist()
+
         self.expected_len = sum(self._data_lengths)
 
         # parameters for parsing aligned/ordered bytearray into separate fields
         multiples = np.bincount(expanded_packet_structure).tolist()
-        offsets = np.cumsum(np.array([m*self._round_up_int(data_lengths[idx], 4) for idx, m in enumerate(multiples)]))
+        offsets = np.cumsum([0] + [m*self._round_up_int(data_lengths[idx], 4) for idx, m in enumerate(multiples)][:-1])
         self._type_conversions = self._create_conversions([
             (datatypes[i], offsets[i], multiples[i]) 
             for i in range(len(names))])
         
+        print(expanded_packet_structure)
+        print(self._data_lengths)
+        print(self._aligned_data_lengths)
+        print(self._signextend)
+        print(self._offsets)
+        print(self._reorder)
+
+        print(names, data_lengths, datatypes, self.expected_len)
+        print(offsets, multiples)
+        
         # setup for plotting
 
 
-        # per-data-field initialization
-        self.keys = list(self.DATA_SPLIT.keys())
-        self.keys_to_idx = {key:i for i, key in enumerate(self.keys)}
-        self.ranges = [self.DATA_SPLIT[key]['range'] for key in self.keys]
-        # self.buffers = [CircularBuffer(DataStream._max_buffer_len(self.data_config, key)) for key in self.keys]
-        self.buffers = [np.zeros((8, 4)) for _ in self.keys]
-        self.cols = 2
+        # # per-data-field initialization
+        # self.keys = list(self.DATA_SPLIT.keys())
+        # self.keys_to_idx = {key:i for i, key in enumerate(self.keys)}
+        # self.ranges = [self.DATA_SPLIT[key]['range'] for key in self.keys]
+        # # self.buffers = [CircularBuffer(DataStream._max_buffer_len(self.data_config, key)) for key in self.keys]
+        # self.buffers = [np.zeros((8, 4)) for _ in self.keys]
+        # self.cols = 2
 
-        # initialize plotting
-        self.figure = DataPlotting(self.buffers, labels=self.keys, ylims=self.ranges, cols=self.cols)
+        # # initialize plotting
+        self.figure = DataPlotting([CircularBuffer(1)])
 
     def parse_data(self) -> None:
         byte_array = self._q.get(block=True)
@@ -92,6 +105,7 @@ class DataStream():
         
         aligned_barray = self._align_byte_buffer(byte_array)
         parsed_data = [convert(aligned_barray) for convert in self._type_conversions]
+        print('parse', parsed_data)
 
         # with open('velostat_left.txt', 'a') as f:
         #     np.savetxt(f, self.buffers[0])
@@ -112,24 +126,25 @@ class DataStream():
             return False
         return True
     
-    # TODO: shift for interlaced data
     def _align_byte_buffer(self, unaligned_buffer : bytearray | bytes):
         aligned_array = bytearray(sum(self._aligned_data_lengths))
-        aligned_idx, unaligned_idx = 0, 0
+        buffer_offset = 0
 
         for i, length in enumerate(self._data_lengths):
             # copy over existing bytes
             aligned_length = self._aligned_data_lengths[i]
             offset = self._offsets[self._reorder[i]]
-            aligned_array[aligned_idx + offset : aligned_idx + length] = (
-                    unaligned_buffer[unaligned_idx : unaligned_idx + length])
+            aligned_array[offset : offset + length] = (
+                    unaligned_buffer[buffer_offset : buffer_offset + length])
 
             # sign extend
             sign_ext_bytes = bytes([(0xFF 
-                                     if (aligned_array[aligned_idx + length - 1] >= 0x80) and self._signextend[i]
+                                     if (aligned_array[offset + length - 1] >= 0x80) and self._signextend[i]
                                      else 0x00) for _ in range(aligned_length - length)])
-            aligned_array[aligned_idx + length + offset : aligned_idx + aligned_length + offset] = (
+            aligned_array[offset + length : offset + aligned_length] = (
                     sign_ext_bytes)
+
+            buffer_offset += length
 
         return aligned_array
 
@@ -151,7 +166,7 @@ class DataStream():
             dtype = (string_to_npdtype.get(requested_dtype, None) 
                      if type(requested_dtype) is str 
                      else requested_dtype)
-            if type(dtype) is not np.dtype: raise TypeError('Invalid datatype for conversion')
+            if not isinstance(dtype, np.dtype): raise TypeError(f'Invalid datatype for conversion: {type(dtype)}')
             return dtype
 
         return [functools.partial(np.frombuffer,

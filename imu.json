@@ -1,0 +1,68 @@
+{
+    "Packet Information": {
+        "frequency": 33,
+        "bytes": 244
+    },
+    "Signals Information": [
+        {
+            "name": "num",
+            "bytes-per-data": 4,
+            "datatype": "unsigned"
+        },
+        {
+            "name": "x",
+            "bytes-per-data": 2,
+            "datatype": "signed",
+            "graphable": {
+                "color": [
+                    80,
+                    0,
+                    0
+                ],
+				"yrange": [
+					0,
+					10000
+				],
+                "type": "line"
+            }
+        },
+        {
+            "name": "y",
+            "bytes-per-data": 2,
+            "datatype": "signed",
+            "graphable": {
+                "color": [
+                    80,
+                    0,
+                    0
+                ],
+				"yrange": [
+					0,
+					10000
+				],
+                "type": "line"
+            }
+        },
+        {
+            "name": "z",
+            "bytes-per-data": 2,
+            "datatype": "signed",
+            "graphable": {
+                "color": [
+                    80,
+                    0,
+                    0
+                ],
+				"yrange": [
+					0,
+					10000
+				],
+                "type": "line"
+            }
+        }
+    ],
+    "Packet Structure": [
+        "num",
+		["x", "y", "z", 6]
+    ]
+}
