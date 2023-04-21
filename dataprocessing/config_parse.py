@@ -9,10 +9,12 @@ class ConfigParser():
     *.json or *.init (custom) file formats.
     """
 
-    default_init_directory = r'C:\Users\Tienda\Documents\Projects\Research\inits'
+    default_init_directory = None
 
     def __init__(self, default_init_dir=None) -> None:
-        if default_init_dir is not None: ConfigParser.default_init_directory = default_init_dir
+        ConfigParser.default_init_directory = (default_init_dir 
+                                               if default_init_dir is not None
+                                               else os.getcwd())
 
     def read(self, file_name : str) -> dict:
         full_file_name = self._get_full_file_name(file_name)
@@ -69,7 +71,7 @@ class ConfigParser():
                         convert = (int, int)
                         parsed_dict['Packet Information'] = {labels[i]:convert[i](vals[i]) for i in range(len(labels))}
                     elif section_idx == 1:  # Signals Information
-                        labels = ('id', 'name', 'bytes-per-data', 'frequency', 'bits-per-data', 'signed')
+                        labels = ('id', 'name', 'bytes-per-data', 'frequency', 'bits-per-data', 'datatype')
                         convert = (int, str, int, int, int, str)
                         parsed_dict['Signals Information'].append({labels[i]:convert[i](vals[i]) for i in range(len(labels))})
                         curr_signal_ref = parsed_dict['Signals Information'][-1]
@@ -114,13 +116,14 @@ class ConfigParser():
         def __str__(self):
             return f'error {self.fname}: {self.message}'
 
+
+# for testing
+
 def main():
     fname = 'ear_v1.json'
     cfg = ConfigParser()
     print(json.dumps(cfg.read(fname), indent=4))
     cfg.convert_init_to_json(fname)
-
-
 
 if __name__ == '__main__':
     main()

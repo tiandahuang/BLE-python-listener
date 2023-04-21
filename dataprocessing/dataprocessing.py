@@ -1,29 +1,10 @@
 from .dataplotting import DataPlotting
 from .config_parse import ConfigParser
+from .plottingutils import CircularBuffer, MovingAverage
 
 import multiprocessing as mp
-from functools import partial
-
+import functools
 import numpy as np
-from scipy import signal
-from collections import deque
-
-# DATA_SPLIT = {
-#                 'num':{'len':2, 'convert':unsigned},
-#                 'resistance':{'len':4, 'convert':signed},
-#                 'reactance':{'len':4, 'convert':signed},
-#                 'temp 1':{'len':2, 'convert':unsigned},
-#                 'temp 2':{'len':2, 'convert':unsigned}
-#             }
-# DATA_SPLIT = {
-#                 'num':{'len':2, 'convert':unsigned, 'color':(80/256,0,0)},
-#                 'scg':{'len':3, 'convert':signed, 'multi':20, 'color':(80/256,0,0)},
-#                 'ecg':{'len':3, 'convert':signed, 'multi':20, 'color':(80/256,0,0)},
-#                 'ppg':{'len':4, 'convert':signed, 'multi':5, 'color':(80/256,0,0)},
-#                 'tmp':{'len':2, 'convert':unsigned, 'color':(80/256,0,0)}
-#             }
-
-
 
 
 class DataStream():
@@ -35,124 +16,129 @@ class DataStream():
 
     TODO: input config parsing
     TODO: data logging
+    TODO: add skip/ignore field
+    TODO: interleaved data
     """
     
-    QUEUE_BASE_LEN = 10
-    PLOT_REFRESH_FPS = 60
+    QUEUE_BASE_LEN = 20
+    PLOT_REFRESH_FPS = 20
+    SAVE_BUFFER_SIZE = 1000
 
-    @staticmethod
-    def _bytes_to_int(byte_array : bytearray, signed : bool, bit_length=None):
-        bit_length = 8*len(byte_array) if bit_length is None else bit_length
-        # if signed: byte_array[(bit_length+7)//8]
-        return int.from_bytes(byte_array[:(bit_length+7)//8], byteorder='little', signed=signed)
-    
-    @staticmethod
-    def _max_deque_len(data_config, key):
-        return DataStream.QUEUE_BASE_LEN * data_config[key].get('multi', 1)
-
-    # B_COEFS = [0.81587532, -4.0793766, 8.1587532, -8.1587532,  4.0793766, -0.81587532]
-    # A_COEFS = [1.0, -4.5934214, 8.45511522, -7.79491832, 3.59890277, -0.66565254]
-    B_COEFS = [0.99446179, -1.98892358,  0.99446179]
-    A_COEFS = [1.0, -1.98889291,  0.98895425]
-    # DATA_SPLIT = {
-    #     'accel_x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-    #     'accel_y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-    #     'accel_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-    #         # 'filt':{'b':B_COEFS, 'a':A_COEFS, 'gain':5}},
-    #     'gyro_x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-    #     'gyro_y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-    #     'gyro_z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(80,0,0)},
-    # }
-    SENIOR_DESIGN_DATA_MULTI = 20
-    DATA_SPLIT = {
-        'num':{'len':2, 'convert':partial(_bytes_to_int, signed=False), 'color':(0,256,0)},
-        'temp':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'color':(0,256,0)},
-        'accel x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)},
-        'accel y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)},
-        'accel z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)},
-        'gyro x':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)},
-        'gyro y':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)},
-        'gyro z':{'len':2, 'convert':partial(_bytes_to_int, signed=True), 'multi':SENIOR_DESIGN_DATA_MULTI, 'color':(0,256,0)}
-    }
-    EXPECTED_LEN = sum(map(lambda x: x['len']*x.get('multi', 1), DATA_SPLIT.values()))
+    # EXPECTED_LEN = sum(map(lambda x: x['len']*x.get('multi', 1), DATA_SPLIT.values()))
 
 
     def __init__(self, queue : mp.Queue, dev_name : str, config_file : str, **kwargs) -> None:
-        self.q = queue
-        self.name = None
+        self._q = queue
+        self.name = dev_name
+        self.config_file = config_file
 
-        # data parsing config
-        parser = ConfigParser()
-        self.data_config = self.DATA_SPLIT
+        # data parsing
+        data_config = ConfigParser().read(config_file)
+
+        # rotate config dictionary into series of lists
+        def _config_fetch_field(dlist, key, default=None):
+            return [(sig.get(key, default) 
+                    if default is not None 
+                    else sig.get(key)) for sig in dlist]
+
+        # required fields
+        self._names = _config_fetch_field(data_config['Signals Information'], 'name')
+        # TODO: need multi expansion on data lengths
+        self._data_lengths = _config_fetch_field(data_config['Signals Information'], 'bytes-per-data')
+        # TODO: see which ones need expansion and which dont
+        self._type_conversions = self._create_conversions()
+
+        self.expected_len = 0
 
         # per-data-field initialization
-        self.lfilt_a = {}; self.lfilt_b = {}; self.lfilt_gain = {}; self.lfilt_zi = {}
-        self.graphics_queues = {}
-        
-        for key in self.data_config:
-            self.graphics_queues[key] = deque(
-                    [0.0 for _ in range(DataStream._max_deque_len(self.data_config, key))], 
-                    DataStream._max_deque_len(self.data_config, key))
-            
-            # filter initial condition and parameters
-            if 'filt' in self.data_config[key]:
-                self.lfilt_b[key] = self.data_config[key]['filt']['b']
-                self.lfilt_a[key] = self.data_config[key]['filt'].get('a', [1.0])
-                self.lfilt_gain[key] = self.data_config[key]['filt'].get('gain', 1.0)
-                self.lfilt_zi[key] = signal.lfiltic(self.lfilt_b[key], self.lfilt_a[key], 0, 0)
+        self.keys = list(self.DATA_SPLIT.keys())
+        self.keys_to_idx = {key:i for i, key in enumerate(self.keys)}
+        self.ranges = [self.DATA_SPLIT[key]['range'] for key in self.keys]
+        # self.buffers = [CircularBuffer(DataStream._max_buffer_len(self.data_config, key)) for key in self.keys]
+        self.buffers = [np.zeros((8, 4)) for _ in self.keys]
+        self.cols = 2
 
         # initialize plotting
-        self.figure = DataPlotting(
-            self.graphics_queues, 
-            {key:np.divide(self.data_config[key]['color'], 256) 
-                for key in self.data_config})
-        
-        self.refresh_period_ns = 1e9 / self.PLOT_REFRESH_FPS
+        self.figure = DataPlotting(self.buffers, labels=self.keys, ylims=self.ranges, cols=self.cols)
 
     def parse_data(self) -> None:
         byte_array = self.q.get(block=True)
 
         if len(byte_array) == 0: raise self.DisconnectedError()
-        if len(byte_array) != self.EXPECTED_LEN: raise self.WrongMSGLenError(byte_array, self.EXPECTED_LEN)
+        if len(byte_array) != self.expected_len: raise self.WrongMSGLenError(byte_array, self.EXPECTED_LEN)
+        
 
-        decode = lambda start, len: self._bytes_to_int(byte_array[start:start+len], True)
 
-        self.graphics_queues['num'].append(decode(0, 2))
-        self.graphics_queues['temp'].append(decode(2, 2) / 1000)
-
-        for sense_idx, sense in enumerate(('accel', 'gyro')):
-            for i in range(self.SENIOR_DESIGN_DATA_MULTI):
-                for axis_idx, axis in enumerate((' x', ' y', ' z')):
-                    data = decode(4 + 120*sense_idx + 6*i + 2*axis_idx, 2)
-                    self.graphics_queues[sense + axis].append(data)
-
-        # idx = 0
-        # for key in self.data_config:
-        #     for _ in range(self.data_config[key].get('multi', 1)):
-        #         rawdata = self.data_config[key]['convert'](byte_array[idx:(idx := idx+self.data_config[key]['len'])])
-                
-        #         if 'filt' in self.data_config[key]:
-        #             filtdata, self.lfilt_zi[key] = signal.lfilter(
-        #                     self.lfilt_b[key], 
-        #                     self.lfilt_a[key], 
-        #                     (rawdata,), 
-        #                     zi=self.lfilt_zi[key])
-        #             data = self.lfilt_gain[key]*filtdata
-        #             self.graphics_queues[key].append(data)
-        #         else:
-        #             self.graphics_queues[key].append(rawdata)
+        # with open('velostat_left.txt', 'a') as f:
+        #     np.savetxt(f, self.buffers[0])
+        # with open('velostat_right.txt', 'a') as f:
+        #     np.savetxt(f, self.buffers[1])
 
     def run(self) -> None:
-        while True:
-            self.figure.update()
-            try:
-                self.parse_data()
-            except self.WrongMSGLenError as e:
-                print(e)
-            except self.DisconnectedError as e:
-                print(e)
-                self.figure.stop()
-                return
+        self.figure.run(self.PLOT_REFRESH_FPS, self._update_func)
+
+    def _update_func(self) -> None:
+        try:
+            self.parse_data()
+        except self.WrongMSGLenError as e:
+            print(e)
+            return False
+        except self.DisconnectedError as e:
+            print(e)
+            return False
+        return True
+
+    # creates a list of conversion functions from an input list
+    # input list contains tuples of
+    #           type: ('float', 'int', 'unsigned')
+    #           start byte / bytearray offset
+    #           array count / repeats
+    # note conversions require the input array to be 32b word aligned
+    @staticmethod
+    def _create_conversions(types : list[tuple[str | np.dtype, int, int]]):
+        string_to_npdtype = {'float'     : np.dtype(np.float32).newbyteorder('<'),  # default to little endian
+                             'int'       : np.dtype(np.int32).newbyteorder('<'),
+                             'unsigned'  : np.dtype(np.uint32).newbyteorder('<')}
+
+        def convert_to_npdtype(requested_dtype : str | np.dtype):
+            dtype = (string_to_npdtype.get(requested_dtype, None) 
+                     if type(requested_dtype) is str 
+                     else requested_dtype)
+            if type(dtype) is not np.dtype: raise TypeError('Invalid datatype for conversion')
+            return dtype
+
+        return [functools.partial(np.frombuffer,
+                                  dtype=convert_to_npdtype(e[0]),
+                                  offset=e[1],
+                                  count=e[2]) for e in types]
+    
+    @staticmethod
+    def _align_byte_buffer(unaligned_buffer : bytearray | bytes, lengths : list[int], signextend : list[bool]):
+        round4 = lambda x: DataStream._round_up_int(x, 4)
+        total_length = sum(map(round4, lengths))
+        aligned_bytearray = bytearray(total_length)
+        aligned_idx, unaligned_idx = 0, 0
+
+        for i, length in enumerate(lengths):
+            # copy over existing bytes
+            aligned_length = round4(length)
+            aligned_bytearray[aligned_idx:aligned_idx + length] = unaligned_buffer[unaligned_idx:unaligned_idx + length]
+
+            # sign extend
+            sign_ext_bytes = bytes([(0xFF 
+                                     if (aligned_bytearray[aligned_idx + length - 1] >= 0x80) and signextend[i]
+                                     else 0x00) for _ in range(aligned_length - length)])
+            aligned_bytearray[aligned_idx + length:aligned_idx + aligned_length] = sign_ext_bytes
+
+        return aligned_bytearray
+
+    @staticmethod
+    def _max_buffer_len(data_config, key):
+        return DataStream.QUEUE_BASE_LEN * data_config[key].get('multi', 1)
+    
+    @staticmethod
+    def _round_up_int(n, base):
+        return((n + base - 1) // base) * base
 
     class WrongMSGLenError(Exception): 
         """ Raised when recieved byte array is of an incorrect length """
@@ -167,5 +153,5 @@ class DataStream():
         def __str__(self):
             return 'disconnected: DataStream'
     
-    
-    
+
+

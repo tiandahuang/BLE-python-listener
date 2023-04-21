@@ -50,6 +50,7 @@ class BluetoothClient:
             print(f'disconnected: {dev}')
 
         def recieve_callback(gatt_char, data):
+            # print(f'recv: len {len(data)}')
             self.queue.put(data)
 
         try:

@@ -1,0 +1,56 @@
+{
+    "Packet Information": {
+        "frequency": 10,
+        "bytes": 7
+    },
+    "Signals Information": [
+        {
+            "name": "test",
+            "bytes-per-data": 1,
+            "datatype": "unsigned",
+            "graphable": {
+                "color": [
+                    250,
+                    0,
+                    0,
+                    255
+                ],
+				"yrange": [
+					0,
+					100
+				],
+                "type": "line"
+            },
+            "filter": {
+                "b": [
+                    0.81587532,
+                    -4.0793766,
+                    8.1587532,
+                    -8.1587532,
+                    4.0793766,
+                    -0.81587532
+                ],
+                "a": [
+                    1.0,
+                    -4.5934214,
+                    8.45511522,
+                    -7.79491832,
+                    3.59890277,
+                    -0.66565254
+                ],
+                "gain": [
+                    8.0
+                ]
+            }
+        },
+        {
+            "name": "num",
+            "bytes-per-data": 2,
+            "datatype": "unsigned"
+        }
+    ],
+    "Packet Structure": [
+        "num",
+		["test", 5]
+    ]
+}

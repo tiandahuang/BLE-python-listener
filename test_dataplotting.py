@@ -10,30 +10,31 @@ def main():
     
     t = 0
 
-    NUM_SUBPLOTS = 1
-    COLS = 1
+    COLS = 2
     LEN_BUFFER = 200
-    DIMS_2D = (4, 4)
-    TEST_2D = False
-    TEST_AUTO_REFRESH = True
+    DIMS_2D = (16, 4)
+    TEST_2D = [True, False, False, True]
+    TEST_AUTO_REFRESH = False
     FPS = 60
 
-    p_data = [np.zeros(DIMS_2D) if TEST_2D else CircularBuffer(LEN_BUFFER) for _ in range(NUM_SUBPLOTS)]
+    p_data = [np.zeros(DIMS_2D) if is_2d else CircularBuffer(LEN_BUFFER) for is_2d in TEST_2D]
     p = DataPlotting(p_data, cols=COLS)
+    num_subplots = len(TEST_2D)
 
     if TEST_AUTO_REFRESH:
         def update_func():
             nonlocal t
-            if TEST_2D:
-                for i in range(NUM_SUBPLOTS):
+
+            for i in range(num_subplots):
+                if TEST_2D[i]:
                     for j in range(DIMS_2D[0]):
                         for k in range(DIMS_2D[1]):
-                            p_data[i][j][k] = math.sin((j+k+t)/math.pi)
-            else:
-                val = 0.75 * math.sin(t/100)
-                for i in range(NUM_SUBPLOTS):
+                            p_data[i][j][k] = math.sin((j+k+t)/6*math.pi)
+                else:
+                    val = 0.75 * math.sin(t/100)
                     p_data[i].put(val * (1 if i % 2 == 0 else -1))
                     p_data[i].increment_view()
+        
             t += 1
             MEAN = 1/FPS
             STD_DEV = 0.2*MEAN
@@ -47,14 +48,13 @@ def main():
         fps_avg = MovingAverage(200)
         while True:
             
-            if TEST_2D:
-                for i in range(NUM_SUBPLOTS):
+            for i in range(num_subplots):
+                if TEST_2D[i]:
                     for j in range(DIMS_2D[0]):
                         for k in range(DIMS_2D[1]):
                             p_data[i][j][k] = math.sin((j+k+t)/6*math.pi)
-            else:
-                val = 0.75 * math.sin(t/100)
-                for i in range(NUM_SUBPLOTS):
+                else:
+                    val = 0.75 * math.sin(t/100)
                     p_data[i].put(val * (1 if i % 2 == 0 else -1))
                     p_data[i].increment_view()
 

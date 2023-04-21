@@ -31,6 +31,23 @@ class CircularBuffer:
             yield self.buffer[i]
             i += 1
 
+class MovingAverage:
+
+    def __init__(self, length, dtype=np.float32):
+        self.length = length
+        self.buffer = np.array([0 for _ in range(length)], dtype=dtype)
+        self.putidx = 0
+        self.total = 0.0
+
+    def put(self, x):
+        self.total = self.total - self.buffer[self.putidx] + x
+        self.buffer[self.putidx] = x
+        self.putidx += 1
+        if self.putidx == self.length: self.putidx = 0
+
+    def get(self):
+        return self.total / self.length
+
 class PlottingColor:
     """
     Assigns lists of default colors and contains helper functions for color conversion

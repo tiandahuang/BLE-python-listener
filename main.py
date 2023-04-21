@@ -51,7 +51,6 @@ if __name__ == '__main__':
     p1.start()
 
     reciever = mp.Process(target=datastream_process, args=(recieve_queue, args))
-    # reciever = dataprocessing.DataStream("", recieve_queue)
     reciever.start()
 
     p1.join()

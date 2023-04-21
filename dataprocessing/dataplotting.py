@@ -19,14 +19,14 @@ class DataPlotting:
     """
 
     def __init__(self, 
-                 data_buffers : Union[list[CircularBuffer], list[np.ndarray]], # required
+                 data_buffers : list[Union[CircularBuffer, np.ndarray]], # required
                  labels       : list[str] = None,
                  colors       : list[Union[str, tuple[int, int, int], tuple[float, float, float]]] = None,
                  ylims        : list[tuple[float, float]] = None,
                  cols         : int = None,
                  *args, **kwargs) -> None:
 
-        self.data_2d = type(data_buffers[0]) is not CircularBuffer
+        self.data_2d = [(type(buf) is not CircularBuffer) for buf in data_buffers]
         self.num_fields = len(data_buffers)
         self.buffers = data_buffers
 
@@ -53,7 +53,10 @@ class DataPlotting:
         self.redraw()
 
     def update(self) -> None:
-        self._update_2d() if self.data_2d else self._update_1d()
+        for i, is_2d in enumerate(self.data_2d):
+            self._update_2d(i) if is_2d else self._update_1d(i)
+
+        self.fig.canvas.flush_events()
 
     def redraw(self, event=None) -> None:
         for i in range(self.num_fields): self.axes[i].cla()
@@ -98,37 +101,31 @@ class DataPlotting:
         print('displaying last output. close figure to continue')
         self.fig.show()
 
-    def _update_1d(self):
-        for i in range(self.num_fields):
-            self.fig.canvas.restore_region(self.backgrounds[i])
-            self.artist[i].set_ydata(self.buffers[i].get_view())
-            self.axes[i].draw_artist(self.artist[i])
-            self.fig.canvas.blit(self.axes[i].bbox)
-        
-        self.fig.canvas.flush_events()
+    def _update_1d(self, i):
+        self.fig.canvas.restore_region(self.backgrounds[i])
+        self.artist[i].set_ydata(self.buffers[i].get_view())
+        self.axes[i].draw_artist(self.artist[i])
+        self.fig.canvas.blit(self.axes[i].bbox)
 
-    def _update_2d(self):
-        for i in range(self.num_fields):
-            self.artist[i].set_data(self.buffers[i])
-            self.axes[i].draw_artist(self.artist[i])
-            self.fig.canvas.blit(self.axes[i].bbox)
-        
-        self.fig.canvas.flush_events()
+    def _update_2d(self, i):
+        self.artist[i].set_data(self.buffers[i])
+        self.axes[i].draw_artist(self.artist[i])
+        self.fig.canvas.blit(self.axes[i].bbox)
 
     def _reset_axes(self):
         self.artist = [self.axes[i].imshow(self.buffers[i], 
                                            vmin=self.ylims[i][0], 
                                            vmax=self.ylims[i][1], 
                                            interpolation='None', cmap='plasma') 
-                       for i in range(self.num_fields)] if self.data_2d else (
-                      [self.axes[i].plot(self.clear[i],
-                                         color=self.colors[i])[0]
-                       for i in range(self.num_fields)])
+                       if self.data_2d[i] else (
+                       self.axes[i].plot(self.clear[i],
+                                         color=self.colors[i])[0])
+                       for i in range(self.num_fields)]
 
         # plot title, label, and color config
         for i in range(self.num_fields):
             self.axes[i].set_ylabel(self.labels[i])
-            if not self.data_2d:
+            if not self.data_2d[i]:
                 self.axes[i].set_ylim(self.ylims[i])
                 self.axes[i].xaxis.set_visible(False)
         

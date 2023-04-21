@@ -8,7 +8,5 @@ TODO:
 1. disconnect log file
 1. sockets and commands
 1. log/save data
-1. error handling
-1. organize into classes
 1. multiple device support (async, sets)
 1. web server for viewing
