@@ -33,15 +33,17 @@ class DataStream():
         data_config = ConfigParser().read(config_file)
 
         # rotate config dictionary into series of lists
-        def _config_fetch_field(dlist, key, default=None):
-            return [(sig.get(key, default) 
-                    if default is not None 
-                    else sig[key]) for sig in dlist]
+        def _config_fetch_field(*keys, **kwargs):
+            def fetch(d, key): return (
+                (d.get(key, kwargs['default']) if 'default' in kwargs else d[key]) 
+                if d else None)
+            def fetch_nested(d, keys): return functools.reduce(fetch, keys, d)
+            return [fetch_nested(sig, keys) for sig in data_config['Signals Information']]
 
         # required fields
-        names = _config_fetch_field(data_config['Signals Information'], 'name')
-        data_lengths = _config_fetch_field(data_config['Signals Information'], 'bytes-per-data')
-        datatypes = _config_fetch_field(data_config['Signals Information'], 'datatype')
+        names = _config_fetch_field('name')
+        data_lengths = _config_fetch_field('bytes-per-data')
+        datatypes = _config_fetch_field('datatype')
         name_to_idx = lambda n: {name:i for i, name in enumerate(names)}[n]
 
         # setup for parsing
@@ -84,7 +86,17 @@ class DataStream():
         print(offsets, multiples)
         
         # setup for plotting
+        graphing_configs = _config_fetch_field('graphable', default=None)
+        self._graphable = [type(cfg) is dict for cfg in graphing_configs]
+        print(graphing_configs)
 
+        plot_buffer_types = _config_fetch_field('graphable', 'type', default='line')
+        self._buffers = []
+        plot_labels = [names[i] for i, graphable in enumerate(self._graphable) if graphable]
+        plot_colors = _config_fetch_field('graphable', 'color', default=None)
+        plot_ranges = _config_fetch_field('graphable', 'yrange', default=None)
+        print(plot_colors)
+        print(plot_ranges)
 
         # # per-data-field initialization
         # self.keys = list(self.DATA_SPLIT.keys())

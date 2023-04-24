@@ -8,13 +8,17 @@
             "name": "test1",
             "bytes-per-data": 1,
             "datatype": "unsigned",
-            "graphable": {}
+            "graphable": {
+                "color": [255, 255, 255]
+            }
         },
         {
             "name": "test2",
             "bytes-per-data": 1,
             "datatype": "int",
-            "graphable": {}
+            "graphable": {
+                "yrange": [0, 1]
+            }
         },
         {
             "name": "num",
