@@ -14,6 +14,7 @@ class CircularBuffer:
         self.buffer[self.putidx] = self.buffer[self.putidx + self.length + 1] = x
         self.putidx += 1
         if self.putidx == self.length + 1: self.putidx = 0
+        self.increment_view()
 
     def get_view(self):
         return self.buffer[self.view:(self.view+self.length)]

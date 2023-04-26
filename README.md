@@ -10,3 +10,10 @@ TODO:
 1. log/save data
 1. multiple device support (async, sets)
 1. web server for viewing
+1. plotting -- autorange
+
+TODO (CLI):
+
+1. add/drop
+1. manual config edit?
+1. plotting param tuning

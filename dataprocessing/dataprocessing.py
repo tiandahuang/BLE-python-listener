@@ -14,10 +14,8 @@ class DataStream():
 
     Data is recieved through a multiprocessing queue from a sender process
 
-    TODO: input config parsing
     TODO: data logging
-    TODO: add skip/ignore field
-    TODO: interleaved data
+    TODO: tidy up init function
     """
     
     QUEUE_BASE_LEN = 20
@@ -144,9 +142,9 @@ class DataStream():
         for i, data_field in enumerate(parsed_data):
             if (idx := self._map_data_to_graphing_idx[i]) is not None:
                 if type(self._buffers[idx]) is CircularBuffer:
-                    pass
-                else:
-                    pass
+                    for d in data_field: self._buffers[idx].put(d)
+                else: # 2d ndarray buffer
+                    self._buffers[idx][:] = np.reshape(data_field, self._buffers[idx].shape)
 
         # with open('velostat_left.txt', 'a') as f:
         #     np.savetxt(f, self.buffers[0])
