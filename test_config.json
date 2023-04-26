@@ -19,7 +19,8 @@
 					0,
 					100
 				],
-                "type": "line"
+                "type": "line",
+                "heatmap-dimensions": [1, 5] 
             },
             "filter": {
                 "b": [

@@ -9,7 +9,10 @@
             "bytes-per-data": 1,
             "datatype": "unsigned",
             "graphable": {
-                "color": [255, 255, 255]
+                "color": [255, 255, 255],
+                "heatmap-dimensions": [1, 3],
+                "type": "heatmap",
+                "yrange": [0, 64]
             }
         },
         {

@@ -12,7 +12,7 @@
         {
             "name": "x",
             "bytes-per-data": 2,
-            "datatype": "signed",
+            "datatype": "int",
             "graphable": {
                 "color": [
                     80,
@@ -29,7 +29,7 @@
         {
             "name": "y",
             "bytes-per-data": 2,
-            "datatype": "signed",
+            "datatype": "int",
             "graphable": {
                 "color": [
                     80,
@@ -46,7 +46,7 @@
         {
             "name": "z",
             "bytes-per-data": 2,
-            "datatype": "signed",
+            "datatype": "int",
             "graphable": {
                 "color": [
                     80,
@@ -63,6 +63,6 @@
     ],
     "Packet Structure": [
         "num",
-		["x", "y", "z", 6]
+		["x", "y", "z", 40]
     ]
 }

@@ -26,6 +26,7 @@ def main():
               [i]
             + [0 for _ in range(5)]
             + [(2*i+j) if (j%2==0) else ((~(2*i+j)+1)&0xFF) for j in range(6)]))
+        time.sleep(0.5)
 
     recieve_queue.put(bytearray())
 

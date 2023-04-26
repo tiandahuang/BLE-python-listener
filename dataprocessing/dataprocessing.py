@@ -22,6 +22,7 @@ class DataStream():
     
     QUEUE_BASE_LEN = 20
     PLOT_REFRESH_FPS = 20
+    PLOT_COLUMNS = 1
     SAVE_BUFFER_SIZE = 1000
 
     def __init__(self, queue : mp.Queue, dev_name : str, config_file : str, **kwargs) -> None:
@@ -33,12 +34,11 @@ class DataStream():
         data_config = ConfigParser().read(config_file)
 
         # rotate config dictionary into series of lists
-        def _config_fetch_field(*keys, **kwargs):
+        def _config_fetch_field(key, **kwargs):
             def fetch(d, key): return (
                 (d.get(key, kwargs['default']) if 'default' in kwargs else d[key]) 
                 if d else None)
-            def fetch_nested(d, keys): return functools.reduce(fetch, keys, d)
-            return [fetch_nested(sig, keys) for sig in data_config['Signals Information']]
+            return [fetch(sig, key) for sig in data_config['Signals Information']]
 
         # required fields
         names = _config_fetch_field('name')
@@ -72,8 +72,8 @@ class DataStream():
         multiples = np.bincount(expanded_packet_structure).tolist()
         offsets = np.cumsum([0] + [m*self._round_up_int(data_lengths[idx], 4) for idx, m in enumerate(multiples)][:-1])
         self._type_conversions = self._create_conversions([
-            (datatypes[i], offsets[i], multiples[i]) 
-            for i in range(len(names))])
+                (datatypes[i], offsets[i], multiples[i]) 
+                for i in range(len(names))])
         
         print(expanded_packet_structure)
         print(self._data_lengths)
@@ -87,27 +87,48 @@ class DataStream():
         
         # setup for plotting
         graphing_configs = _config_fetch_field('graphable', default=None)
-        self._graphable = [type(cfg) is dict for cfg in graphing_configs]
+        plot_mask = [type(cfg) is dict for cfg in graphing_configs]
         print(graphing_configs)
 
-        plot_buffer_types = _config_fetch_field('graphable', 'type', default='line')
-        self._buffers = []
-        plot_labels = [names[i] for i, graphable in enumerate(self._graphable) if graphable]
-        plot_colors = _config_fetch_field('graphable', 'color', default=None)
-        plot_ranges = _config_fetch_field('graphable', 'yrange', default=None)
+        map_graphing_to_data_idx = [i for i, graphable in enumerate(plot_mask) if graphable]
+        self._map_data_to_graphing_idx = [(idx if plot_mask[i] else None) 
+                                          for i, idx in enumerate(np.cumsum(plot_mask, dtype=int) - 1)]
+        
+        plot_buffer_types = [cfg.get('type', 'line') for cfg in graphing_configs if cfg is not None]
+        plot_heatmap_dims = [cfg.get('heatmap-dimensions') for cfg in graphing_configs if cfg is not None]
+        # validate plotting settings
+        for i, plot_type in enumerate(plot_buffer_types): 
+            if plot_type not in ('line', 'heatmap'): 
+                raise ValueError(f'Invalid plot type: {plot_type}')
+            if plot_type == 'heatmap' and not (
+                    type(plot_heatmap_dims[i]) is list 
+                    and len(plot_heatmap_dims[i]) == 2
+                    and plot_heatmap_dims[i][0] * plot_heatmap_dims[i][1] == multiples[map_graphing_to_data_idx[i]]):
+                raise ValueError(f'Heatmap must have valid dimensions: {plot_heatmap_dims[i]}')
+        self._buffers = [(np.zeros(plot_heatmap_dims[i])
+                          if plot_type == 'heatmap' 
+                          else CircularBuffer(self.QUEUE_BASE_LEN * map_graphing_to_data_idx[i]))
+                         for i, plot_type in enumerate(plot_buffer_types)]
+
+        plot_labels = [names[map_graphing_to_data_idx[i]] for i in range(len(self._buffers))]
+        plot_colors = [cfg.get('color') for cfg in graphing_configs if cfg is not None]
+        plot_ranges = [cfg.get('yrange') for cfg in graphing_configs if cfg is not None]
+        
+        print(map_graphing_to_data_idx)
+        print(self._map_data_to_graphing_idx)
+        print(plot_buffer_types)
+        print(plot_heatmap_dims)
         print(plot_colors)
         print(plot_ranges)
+        print(plot_labels)
+        print('')
 
-        # # per-data-field initialization
-        # self.keys = list(self.DATA_SPLIT.keys())
-        # self.keys_to_idx = {key:i for i, key in enumerate(self.keys)}
-        # self.ranges = [self.DATA_SPLIT[key]['range'] for key in self.keys]
-        # # self.buffers = [CircularBuffer(DataStream._max_buffer_len(self.data_config, key)) for key in self.keys]
-        # self.buffers = [np.zeros((8, 4)) for _ in self.keys]
-        # self.cols = 2
-
-        # # initialize plotting
-        self.figure = DataPlotting([CircularBuffer(1)])
+        # initialize plotting
+        self.figure = DataPlotting(self._buffers, 
+                                   labels=plot_labels,
+                                   colors=plot_colors,
+                                   ylims=plot_ranges,
+                                   cols=self.PLOT_COLUMNS)
 
     def parse_data(self) -> None:
         byte_array = self._q.get(block=True)
@@ -118,6 +139,14 @@ class DataStream():
         aligned_barray = self._align_byte_buffer(byte_array)
         parsed_data = [convert(aligned_barray) for convert in self._type_conversions]
         print('parse', parsed_data)
+
+        # update graph
+        for i, data_field in enumerate(parsed_data):
+            if (idx := self._map_data_to_graphing_idx[i]) is not None:
+                if type(self._buffers[idx]) is CircularBuffer:
+                    pass
+                else:
+                    pass
 
         # with open('velostat_left.txt', 'a') as f:
         #     np.savetxt(f, self.buffers[0])
@@ -178,7 +207,7 @@ class DataStream():
             dtype = (string_to_npdtype.get(requested_dtype, None) 
                      if type(requested_dtype) is str 
                      else requested_dtype)
-            if not isinstance(dtype, np.dtype): raise TypeError(f'Invalid datatype for conversion: {type(dtype)}')
+            if not isinstance(dtype, np.dtype): raise TypeError(f'Invalid datatype for conversion: {requested_dtype}')
             return dtype
 
         return [functools.partial(np.frombuffer,

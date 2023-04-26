@@ -30,8 +30,9 @@ class DataPlotting:
         self.num_fields = len(data_buffers)
         self.buffers = data_buffers
 
-        self.colors = list(map(PlottingColor.auto_normalize, colors)) if colors is not None else (
-                      list(PlottingColor(self.num_fields)))
+        self.colors = list(map(PlottingColor.auto_normalize, 
+                               self._check_arg(colors, 
+                                               list(PlottingColor(self.num_fields)))))
         self.labels = self._check_arg(labels, 
                                       ['' for i in range(self.num_fields)])
         self.ylims = self._check_arg(ylims,
