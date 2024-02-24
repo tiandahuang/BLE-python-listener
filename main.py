@@ -32,7 +32,7 @@ def device_process(recieve_queue, args):
 # data recieving process ######################################################
 
 def datastream_process(recieve_queue, args):
-    datastream = dataprocessing.DataStream(recieve_queue, "test_device", "test_config")
+    datastream = dataprocessing.DataStream(recieve_queue, args.name, args.config_file)
     datastream.run()
 
 ###############################################################################
@@ -44,6 +44,7 @@ if __name__ == '__main__':
     parser.add_argument('name')
     parser.add_argument('--timeout', '-t', dest='timeout', default=20.0)
     parser.add_argument('--gatt_char', '-g', dest='gatt_descriptor', default='Nordic UART TX')
+    parser.add_argument('--config_file', '-c', dest='config_file')
     args = parser.parse_args()
 
     recieve_queue = mp.Queue()

@@ -7,6 +7,8 @@ class ConfigParser():
 
     Loaded config files use dictionaries, and saved config files are 
     *.json or *.init (custom) file formats.
+
+    TODO: deprecate init files
     """
 
     default_init_directory = None

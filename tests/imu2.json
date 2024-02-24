@@ -1,0 +1,62 @@
+{
+    "Packet Information": {
+        "frequency": 1,
+        "bytes": 96
+    },
+    "Signals Information": [
+        {
+            "name": "x",
+            "bytes-per-data": 2,
+            "datatype": "int",
+            "graphable": {
+                "color": [
+                    255,
+                    0,
+                    0
+                ],
+				"yrange": [
+					-1000,
+					1000
+				],
+                "type": "line"
+            }
+        },
+        {
+            "name": "y",
+            "bytes-per-data": 2,
+            "datatype": "int",
+            "graphable": {
+                "color": [
+                    0,
+                    255,
+                    0
+                ],
+				"yrange": [
+					-1000,
+					1000
+				],
+                "type": "line"
+            }
+        },
+        {
+            "name": "z",
+            "bytes-per-data": 2,
+            "datatype": "int",
+            "graphable": {
+                "color": [
+                    0,
+                    0,
+                    255
+                ],
+				"yrange": [
+					-1000,
+					1000
+				],
+                "type": "line"
+            }
+        }
+    ],
+    "Packet Structure": [
+		["x", "y", "z", 16]
+    ]
+}

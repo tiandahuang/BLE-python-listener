@@ -1,5 +1,6 @@
 import asyncio
 import multiprocessing as mp
+import time
 
 from bleak import BleakScanner
 from bleak import BleakClient
@@ -38,6 +39,7 @@ class BluetoothClient:
             await stop_event.wait()
 
         print(f'Found device: {self.device}')
+        print(f'found dev: {time.time()}')
         print(self.advertising_data)
 
 
@@ -50,6 +52,7 @@ class BluetoothClient:
             print(f'disconnected: {dev}')
 
         def recieve_callback(gatt_char, data):
+            print(f'recv: {time.time()}')
             # print(f'recv: len {len(data)}')
             self.queue.put(data)
 
@@ -59,6 +62,7 @@ class BluetoothClient:
                 if any((gatt_char := gatt).description == self.args.gatt_descriptor 
                     for gatt in characteristics.values()):
                     print(gatt_char)
+                    print(f'started notif: {time.time()}')
 
                     await client.start_notify(gatt_char, recieve_callback)
                     await disconnect_event.wait()

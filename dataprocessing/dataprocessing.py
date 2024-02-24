@@ -14,6 +14,7 @@ class DataStream():
 
     Data is recieved through a multiprocessing queue from a sender process
 
+    TODO: filter
     TODO: data logging
     TODO: tidy up init function
     """
@@ -136,7 +137,7 @@ class DataStream():
         
         aligned_barray = self._align_byte_buffer(byte_array)
         parsed_data = [convert(aligned_barray) for convert in self._type_conversions]
-        print('parse', parsed_data)
+        # print('parse', parsed_data)
 
         # update graph
         for i, data_field in enumerate(parsed_data):

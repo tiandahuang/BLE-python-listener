@@ -16,6 +16,8 @@ class DataPlotting:
 
     For 1d live-plotting use CircularBuffer
     For 2d live-plotting use np.ndarray
+
+    TODO: multiple data per plot
     """
 
     def __init__(self, 
