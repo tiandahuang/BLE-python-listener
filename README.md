@@ -1,19 +1,20 @@
 
 # BLE-python-listener
 
-TODO:
+contains two modules: `bluetoothclient` and `dataprocessing`.
 
-1. read config file for configuring packet size (or through shell params) - bit sign extend, filtering, arbitrary functions
-1. reconnecting
-1. disconnect log file
-1. sockets and commands
-1. log/save data
-1. multiple device support (async, sets)
-1. web server for viewing
-1. plotting -- autorange
+### `bluetoothclient`
+This module contains code for connecting via bluetooth using the [BLEAK library](https://github.com/hbldh/bleak); intended usage is for this module to be launched in a separate multiprocessing process.
 
-TODO (CLI):
+### `dataprocessing`
+This module contains code for parsing received raw bytes and graphing the processed information. Parsing and graphing configuration is performed through `.json` files. Examples for the `.json` configuration file format are stored in `./tests`.
 
-1. add/drop
-1. manual config edit?
-1. plotting param tuning
+Graphing uses Matplotlib.
+
+### usage
+
+run `python main.py --help` for options (these may be outdated though)
+
+sample device configuration files are stored in `./tests/*.json`
+
+***warning: this code is extremely buggy out-of-the-box***

@@ -10,8 +10,7 @@ class BluetoothClient:
     Class containing a bluetooth client's connection details
     Runs entirely asynchronously, await the run method to start
 
-    TODO: reconnect
-    TODO: add debugging methods (discover)
+    TODO: reconnect on disconnect
     """
 
     def __init__(self, queue : mp.Queue, device_name : str, args) -> None:

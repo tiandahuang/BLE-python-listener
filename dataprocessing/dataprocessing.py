@@ -147,11 +147,6 @@ class DataStream():
                 else: # 2d ndarray buffer
                     self._buffers[idx][:] = np.reshape(data_field, self._buffers[idx].shape)
 
-        # with open('velostat_left.txt', 'a') as f:
-        #     np.savetxt(f, self.buffers[0])
-        # with open('velostat_right.txt', 'a') as f:
-        #     np.savetxt(f, self.buffers[1])
-
     def run(self) -> None:
         self.figure.run(self.PLOT_REFRESH_FPS, self._update_func)
 

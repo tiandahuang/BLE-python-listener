@@ -122,7 +122,7 @@ class ConfigParser():
 # for testing
 
 def main():
-    fname = 'ear_v1.json'
+    fname = ''
     cfg = ConfigParser()
     print(json.dumps(cfg.read(fname), indent=4))
     cfg.convert_init_to_json(fname)
